@@ -167,55 +167,34 @@ prompt |  Constraints para la Tabla PERFILES  |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE PERFILES
-ADD CONSTRAINT nn_nombre_perfil_perfiles CHECK (NOMBRE_PERFIL IS NOT NULL);
---ROLES_ID
-ALTER TABLE PERFILES
-ADD CONSTRAINT nn_roles_perfil_perfiles CHECK (ROLES_ID IS NOT NULL);
+ADD CONSTRAINT nn_insertar_perfiles CHECK (INSERTAR IS NOT NULL);
 
 ALTER TABLE PERFILES
-ADD CONSTRAINT pk_id_perfil_perfiles PRIMARY KEY (ID_PERFIL);
+ADD CONSTRAINT nn_actualizar_perfiles CHECK (ACTUALIZAR IS NOT NULL);
 
 ALTER TABLE PERFILES
-ADD CONSTRAINT fk_roles_id_perfiles
-FOREIGN KEY (ROLES_ID)
-REFERENCES ROLES(ID_ROL);
+ADD CONSTRAINT nn_eliminar_perfiles CHECK (ELIMINAR IS NOT NULL);
 
-
------------------------------------------------PERFILES_FORMULARIOS--------------------------------------------------------
-
-prompt +--------------------------------------------------------+
-prompt |  Constraints para la Tabla PERFILES_FORMULARIOS  |
-prompt +--------------------------------------------------------+
-
-ALTER TABLE PERFILES_FORMULARIOS
-ADD CONSTRAINT nn_insertar_perfiles_formularios CHECK (INSERTAR IS NOT NULL);
-
-ALTER TABLE PERFILES_FORMULARIOS
-ADD CONSTRAINT nn_actualizar_perfiles_formularios CHECK (ACTUALIZAR IS NOT NULL);
-
-ALTER TABLE PERFILES_FORMULARIOS
-ADD CONSTRAINT nn_eliminar_perfiles_formularios CHECK (ELIMINAR IS NOT NULL);
-
-ALTER TABLE PERFILES_FORMULARIOS
+ALTER TABLE PERFILES
 ADD CONSTRAINT chk_boolean_insertar CHECK (INSERTAR IN (0, 1));
 
-ALTER TABLE PERFILES_FORMULARIOS
+ALTER TABLE PERFILES
 ADD CONSTRAINT chk_boolean_actualizar CHECK (ACTUALIZAR IN (0, 1));
 
-ALTER TABLE PERFILES_FORMULARIOS
+ALTER TABLE PERFILES
 ADD CONSTRAINT chk_boolean_eliminar CHECK (ELIMINAR IN (0, 1));
 
-ALTER TABLE PERFILES_FORMULARIOS
-ADD CONSTRAINT pk_id_perfil_id_formulario_perfiles_formularios PRIMARY KEY (ID_PERFIL, ID_FORMULARIO);
+ALTER TABLE PERFILES
+ADD CONSTRAINT pk_id_perfil_id_formulario_perfiles PRIMARY KEY (ID_PERFIL, ID_FORMULARIO);
 
 
-ALTER TABLE PERFILES_FORMULARIOS
-ADD CONSTRAINT fk_id_perfil_perfiles_formularios
+ALTER TABLE PERFILES
+ADD CONSTRAINT fk_id_perfil_perfiles
 FOREIGN KEY (ID_PERFIL)
-REFERENCES PERFILES(ID_PERFIL);
+REFERENCES ROLES(ID_ROL);
 
-ALTER TABLE PERFILES_FORMULARIOS
-ADD CONSTRAINT fk_id_formulario_perfiles_formularios
+ALTER TABLE PERFILES
+ADD CONSTRAINT fk_id_formulario_perfiles
 FOREIGN KEY (ID_FORMULARIO)
 REFERENCES FORMULARIOS(ID_FORMULARIO);
 

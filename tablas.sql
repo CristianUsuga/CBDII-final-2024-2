@@ -10,72 +10,72 @@ prompt +---------------------------------------------------+
 prompt +-----------------------------------------------------+
 prompt |          Eliminación de Tablas Existente            |
 prompt +-----------------------------------------------------+
-DROP TABLE ESTADOS_USUARIOS;
-prompt --> ESTADOS_USUARIOS eliminada si existía previamente.
-DROP TABLE TIPOS_DOCUMENTOS;
-prompt --> TIPOS_DOCUMENTOS eliminada si existía previamente.
-DROP TABLE ROLES;
-prompt --> ROLES eliminada si existía previamente.
-DROP TABLE SEXOS;
-prompt --> SEXOS eliminada si existía previamente.
-DROP TABLE DEPARTAMENTOS;
-prompt --> DEPARTAMENTOS eliminada si existía previamente.
-DROP TABLE CIUDADES;
-prompt --> CIUDADES eliminada si existía previamente.
-DROP TABLE BARRIOS;
-prompt --> BARRIOS eliminada si existía previamente.
-DROP TABLE DIRECCIONES;
-prompt --> DIRECCIONES eliminada si existía previamente.
-DROP TABLE FORMULARIOS;
-prompt --> FORMULARIOS eliminada si existía previamente.
-DROP TABLE PERFILES;
-prompt --> PERFILES eliminada si existía previamente.
-DROP TABLE PERFILES_FORMULARIOS;
-prompt --> PERFILES_FORMULARIOS eliminada si existía previamente.
-DROP TABLE USUARIOS;
-prompt --> USUARIOS eliminada si existía previamente.
-DROP TABLE SEGUIMIENTOS;
-prompt --> SEGUIMIENTOS eliminada si existía previamente.
-DROP TABLE PRIORIDADES;
-prompt --> PRIORIDADES eliminada si existía previamente.
-DROP TABLE TIPO_TRANSPORTISTA;
-prompt --> TIPO_TRANSPORTISTA eliminada si existía previamente.
-DROP TABLE ESTADOS_LABORATORIOS;
-prompt --> ESTADOS_LABORATORIOS eliminada si existía previamente.
-DROP TABLE LABORATORIOS;
-prompt --> LABORATORIOS eliminada si existía previamente.
-DROP TABLE TIPOS_MOVIMIENTOS;
-prompt --> TIPOS_MOVIMIENTOS eliminada si existía previamente.
-DROP TABLE TIPO_DESCUENTO;
-prompt --> TIPO_DESCUENTO eliminada si existía previamente.
-DROP TABLE TIPO_VALOR;
-prompt --> TIPO_VALOR eliminada si existía previamente.
-DROP TABLE CATEGORIAS;
-prompt --> CATEGORIAS eliminada si existía previamente.
-DROP TABLE TRANSPORTISTAS;
-prompt --> TRANSPORTISTAS eliminada si existía previamente.
-DROP TABLE PRODUCTOS;
-prompt --> PRODUCTOS eliminada si existía previamente.
-DROP TABLE LOTES_PRODUCTOS;
-prompt --> LOTES_PRODUCTOS eliminada si existía previamente.
-DROP TABLE MOVIMIENTOS_INVENTARIO;
-prompt --> MOVIMIENTOS_INVENTARIO eliminada si existía previamente.
-DROP TABLE IMAGENES_PRODUCTOS;
-prompt --> IMAGENES_PRODUCTOS eliminada si existía previamente.
-DROP TABLE USUARIOS_DIRECCIONES;
-prompt --> USUARIOS_DIRECCIONES eliminada si existía previamente.
-DROP TABLE PEDIDOS;
-prompt --> PEDIDOS eliminada si existía previamente.
-DROP TABLE CATEGORIAS_PRODUCTOS;
-prompt --> CATEGORIAS_PRODUCTOS eliminada si existía previamente.
-DROP TABLE DETALLE_PEDIDOS;
-prompt --> DETALLE_PEDIDOS eliminada si existía previamente.
+
 DROP TABLE SECCIONES_ENVIOS;
 prompt --> SECCIONES_ENVIOS eliminada si existía previamente.
-DROP TABLE DESCUENTOS;
-prompt --> DESCUENTOS eliminada si existía previamente.
+DROP TABLE DETALLE_PEDIDOS;
+prompt --> DETALLE_PEDIDOS eliminada si existía previamente.
+DROP TABLE MOVIMIENTOS_INVENTARIO;
+prompt --> MOVIMIENTOS_INVENTARIO eliminada si existía previamente.
+DROP TABLE LOTES_PRODUCTOS;
+prompt --> LOTES_PRODUCTOS eliminada si existía previamente.
 DROP TABLE DESCUENTOS_PRODUCTOS;
 prompt --> DESCUENTOS_PRODUCTOS eliminada si existía previamente.
+DROP TABLE CATEGORIAS_PRODUCTOS;
+prompt --> CATEGORIAS_PRODUCTOS eliminada si existía previamente.
+DROP TABLE DESCUENTOS;
+prompt --> DESCUENTOS eliminada si existía previamente.
+DROP TABLE PEDIDOS;
+prompt --> PEDIDOS eliminada si existía previamente.
+DROP TABLE PERFILES;
+prompt --> PERFILES eliminada si existía previamente.
+DROP TABLE USUARIOS_DIRECCIONES;
+prompt --> USUARIOS_DIRECCIONES eliminada si existía previamente.
+DROP TABLE DIRECCIONES;
+prompt --> DIRECCIONES eliminada si existía previamente.
+DROP TABLE BARRIOS;
+prompt --> BARRIOS eliminada si existía previamente.
+DROP TABLE CIUDADES;
+prompt --> CIUDADES eliminada si existía previamente.
+DROP TABLE DEPARTAMENTOS;
+prompt --> DEPARTAMENTOS eliminada si existía previamente.
+DROP TABLE USUARIOS;
+prompt --> USUARIOS eliminada si existía previamente.
+DROP TABLE ROLES;
+prompt --> ROLES eliminada si existía previamente.
+DROP TABLE TRANSPORTISTAS;
+prompt --> TRANSPORTISTAS eliminada si existía previamente.
+DROP TABLE IMAGENES_PRODUCTOS;
+prompt --> IMAGENES_PRODUCTOS eliminada si existía previamente.
+DROP TABLE PRODUCTOS;
+prompt --> PRODUCTOS eliminada si existía previamente.
+DROP TABLE LABORATORIOS;
+prompt --> LABORATORIOS eliminada si existía previamente.
+DROP TABLE TIPOS_DOCUMENTOS;
+prompt --> TIPOS_DOCUMENTOS eliminada si existía previamente.
+DROP TABLE ESTADOS_USUARIOS;
+prompt --> ESTADOS_USUARIOS eliminada si existía previamente.
+DROP TABLE SEXOS;
+prompt --> SEXOS eliminada si existía previamente.
+DROP TABLE FORMULARIOS;
+prompt --> FORMULARIOS eliminada si existía previamente.
+DROP TABLE TIPO_TRANSPORTISTA;
+prompt --> TIPO_TRANSPORTISTA eliminada si existía previamente.
+DROP TABLE CATEGORIAS;
+prompt --> CATEGORIAS eliminada si existía previamente.
+DROP TABLE TIPO_VALOR;
+prompt --> TIPO_VALOR eliminada si existía previamente.
+DROP TABLE TIPO_DESCUENTO;
+prompt --> TIPO_DESCUENTO eliminada si existía previamente.
+DROP TABLE PRIORIDADES;
+prompt --> PRIORIDADES eliminada si existía previamente.
+DROP TABLE SEGUIMIENTOS;
+prompt --> SEGUIMIENTOS eliminada si existía previamente.
+DROP TABLE TIPOS_MOVIMIENTOS;
+prompt --> TIPOS_MOVIMIENTOS eliminada si existía previamente.
+DROP TABLE ESTADOS_LABORATORIOS;
+prompt --> ESTADOS_LABORATORIOS eliminada si existía previamente.
+
 
 -- Creación de las primeras dos tablas
 prompt +-------------------------------------------------+
@@ -174,18 +174,9 @@ CREATE TABLE FORMULARIOS
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla FORMULARIOS creada correctamente.
 
+
 -----------------------------------------------PERFILES--------------------------------------------------------
 CREATE TABLE PERFILES 
-(
-  ID_PERFIL INTEGER 
-, NOMBRE_PERFIL VARCHAR2(50) 
-, ROLES_ID INTEGER 
-)
-TABLESPACE ts_naturaantioquia;
-prompt --> Tabla PERFILES creada correctamente.
-
------------------------------------------------PERFILES_FORMULARIOS--------------------------------------------------------
-CREATE TABLE PERFILES_FORMULARIOS 
 (
   ID_PERFIL INTEGER 
 , ID_FORMULARIO INTEGER 
@@ -194,7 +185,7 @@ CREATE TABLE PERFILES_FORMULARIOS
 , ELIMINAR NUMBER(1) 
 )
 TABLESPACE ts_naturaantioquia;
-prompt --> Tabla PERFILES_FORMULARIOS creada correctamente.
+prompt --> Tabla FORMULARIOS creada correctamente.
 
 
 -----------------------------------------------USUARIOS--------------------------------------------------------
