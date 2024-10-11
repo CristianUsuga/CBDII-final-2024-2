@@ -7,7 +7,7 @@ prompt |    en la Base de Datos           |
 prompt |          naturantioquia          |
 prompt +----------------------------------+
 
-connect system/sqlOracleDB2
+connect system/--contraseña_system
 
 show con_name
 
@@ -17,7 +17,7 @@ ALTER DATABASE OPEN;
 DROP TABLESPACE ts_naturaantioquia INCLUDING CONTENTS and DATAFILES;
 
 CREATE TABLESPACE ts_naturaantioquia LOGGING
-DATAFILE 'C:\Oracle\PPI-2024-2\datos\DF_naturaantioquia.dbf' size 100M;
+DATAFILE 'C:\Oracle\PPI-2024-2\datos\DF_naturaantioquia.dbf' size 310M;
 
 alter session set "_ORACLE_SCRIPT"=true; 
 

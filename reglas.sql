@@ -285,16 +285,16 @@ ADD CONSTRAINT nn_nombre_prioridades_prioridades CHECK (NOMBRE_PRIORIDADES IS NO
 ALTER TABLE PRIORIDADES
 ADD CONSTRAINT pk_id_prioridad_prioridades PRIMARY KEY (ID_PRIORIDAD);
 
------------------------------------------------TIPO_TRANSPORTISTA--------------------------------------------------------
+-----------------------------------------------TIPOS_TRANSPORTISTAS--------------------------------------------------------
 
 prompt +--------------------------------------------------------+
-prompt |    Constraints para la Tabla TIPO_TRANSPORTISTA      |
+prompt |    Constraints para la Tabla TIPOS_TRANSPORTISTAS      |
 prompt +--------------------------------------------------------+
 
-ALTER TABLE TIPO_TRANSPORTISTA
+ALTER TABLE TIPOS_TRANSPORTISTAS
 ADD CONSTRAINT nn_nombre_prioridades_tipo_transportista CHECK (NOMBRE_PRIORIDADES IS NOT NULL);
 
-ALTER TABLE TIPO_TRANSPORTISTA
+ALTER TABLE TIPOS_TRANSPORTISTAS
 ADD CONSTRAINT pk_id_tipo_transportista PRIMARY KEY (ID_TIPO_TRANSPORTISTA);
 
 -----------------------------------------------ESTADOS_LABORATORIOS--------------------------------------------------------
@@ -321,28 +321,28 @@ ADD CONSTRAINT nn_nombre_t_movimiento_tipos_movimientos CHECK (NOMBRE_T_MOVIMIEN
 ALTER TABLE TIPOS_MOVIMIENTOS
 ADD CONSTRAINT pk_id_t_movimiento_tipos_movimientos PRIMARY KEY (ID_T_MOVIMIENTO);
 
------------------------------------------------TIPO_DESCUENTO--------------------------------------------------------
+-----------------------------------------------TIPOS_DESCUENTOS--------------------------------------------------------
 
 prompt +--------------------------------------------------------+
-prompt |  Constraints para la Tabla TIPO_DESCUENTO   |
+prompt |  Constraints para la Tabla TIPOS_DESCUENTOS   |
 prompt +--------------------------------------------------------+
 
-ALTER TABLE TIPO_DESCUENTO
+ALTER TABLE TIPOS_DESCUENTOS
 ADD CONSTRAINT nn_nombre_tipo_descuento_tipo_descuento CHECK (NOMBRE_TIPO_DESC IS NOT NULL);
 
-ALTER TABLE TIPO_DESCUENTO
+ALTER TABLE TIPOS_DESCUENTOS
 ADD CONSTRAINT pk_id_tipo_descuento_tipo_descuento PRIMARY KEY (ID_TIPO_DESC);
 
------------------------------------------------TIPO_VALOR--------------------------------------------------------
+-----------------------------------------------TIPOS_VALORES--------------------------------------------------------
 
 prompt +--------------------------------------------------------+
-prompt |     Constraints para la Tabla TIPO_VALOR      |
+prompt |     Constraints para la Tabla TIPOS_VALORES      |
 prompt +--------------------------------------------------------+
 
-ALTER TABLE TIPO_VALOR
+ALTER TABLE TIPOS_VALORES
 ADD CONSTRAINT nn_nombre_tipo_valor_tipo_valor CHECK (NOMBRE_TIPO_VALOR IS NOT NULL);
 
-ALTER TABLE TIPO_VALOR
+ALTER TABLE TIPOS_VALORES
 ADD CONSTRAINT pk_id_tipo_valor_tipo_valor PRIMARY KEY (ID_TIPO_VALOR);
 
 -----------------------------------------------CATEGORIAS--------------------------------------------------------
@@ -412,7 +412,7 @@ ADD CONSTRAINT pk_id_transportista_transportistas PRIMARY KEY (ID_TRANSPORTISTA)
 ALTER TABLE TRANSPORTISTAS
 ADD CONSTRAINT fk_tipo_transportistas
 FOREIGN KEY (TIPO)
-REFERENCES TIPO_TRANSPORTISTA(ID_TIPO_TRANSPORTISTA);
+REFERENCES TIPOS_TRANSPORTISTAS(ID_TIPO_TRANSPORTISTA);
 
 -----------------------------------------------PRODUCTOS--------------------------------------------------------
 
@@ -734,12 +734,12 @@ ADD CONSTRAINT pk_id_descuento_descuentos PRIMARY KEY (ID_DESCUENTO);
 ALTER TABLE DESCUENTOS
 ADD CONSTRAINT fk_tipo_descuento_descuentos
 FOREIGN KEY (TIPO_DESCUENTO)
-REFERENCES TIPO_DESCUENTO(ID_TIPO_DESC);
+REFERENCES TIPOS_DESCUENTOS(ID_TIPO_DESC);
 
 ALTER TABLE DESCUENTOS
 ADD CONSTRAINT fk_tipo_valor_descuentos
 FOREIGN KEY (TIPO_VALOR)
-REFERENCES TIPO_VALOR(ID_TIPO_VALOR);
+REFERENCES TIPOS_VALORES(ID_TIPO_VALOR);
 
 ALTER TABLE DESCUENTOS
 ADD CONSTRAINT fk_id_categoria_descuentos
@@ -767,3 +767,17 @@ REFERENCES PRODUCTOS(ID_PRODUCTO);
 
 
 --
+prompt +--------------------------------------------------------+
+prompt |  Constraints para la Tabla LOGS     |
+prompt +--------------------------------------------------------+
+
+ALTER TABLE LOGS
+ADD CONSTRAINT nn_FECHA_AUD CHECK (FECHA_AUD IS NOT NULL);
+ALTER TABLE LOGS
+ADD CONSTRAINT nn_EVENTO_AUD CHECK (EVENTO_AUD IN('INSERT','UPDATE','DELETE'));
+ALTER TABLE LOGS
+ADD CONSTRAINT nn_MOMENTO_AUD CHECK (MOMENTO_AUD IS NOT NULL);
+ALTER TABLE LOGS
+ADD CONSTRAINT nn_ACCION_AUD CHECK (ACCION_AUD IS NOT NULL);
+ALTER TABLE LOGS
+ADD CONSTRAINT nn_USUARIO_AUD CHECK (USUARIO_AUD IS NOT NULL);

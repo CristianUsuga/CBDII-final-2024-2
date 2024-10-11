@@ -59,14 +59,14 @@ DROP TABLE SEXOS;
 prompt --> SEXOS eliminada si existía previamente.
 DROP TABLE FORMULARIOS;
 prompt --> FORMULARIOS eliminada si existía previamente.
-DROP TABLE TIPO_TRANSPORTISTA;
-prompt --> TIPO_TRANSPORTISTA eliminada si existía previamente.
+DROP TABLE TIPOS_TRANSPORTISTAS;
+prompt --> TIPOS_TRANSPORTISTAS eliminada si existía previamente.
 DROP TABLE CATEGORIAS;
 prompt --> CATEGORIAS eliminada si existía previamente.
-DROP TABLE TIPO_VALOR;
-prompt --> TIPO_VALOR eliminada si existía previamente.
-DROP TABLE TIPO_DESCUENTO;
-prompt --> TIPO_DESCUENTO eliminada si existía previamente.
+DROP TABLE TIPOS_VALORES;
+prompt --> TIPOS_VALORES eliminada si existía previamente.
+DROP TABLE TIPOS_DESCUENTOS;
+prompt --> TIPOS_DESCUENTOS eliminada si existía previamente.
 DROP TABLE PRIORIDADES;
 prompt --> PRIORIDADES eliminada si existía previamente.
 DROP TABLE SEGUIMIENTOS;
@@ -226,14 +226,14 @@ CREATE TABLE PRIORIDADES
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla PRIORIDADES creada correctamente.
 
------------------------------------------------TIPO_TRANSPORTISTA--------------------------------------------------------
-CREATE TABLE TIPO_TRANSPORTISTA 
+-----------------------------------------------TIPOS_TRANSPORTISTAS--------------------------------------------------------
+CREATE TABLE TIPOS_TRANSPORTISTAS 
 (
   ID_TIPO_TRANSPORTISTA INTEGER 
 , NOMBRE_PRIORIDADES VARCHAR2(50) 
 )
 TABLESPACE ts_naturaantioquia;
-prompt --> Tabla TIPO_TRANSPORTISTA creada correctamente.
+prompt --> Tabla TIPOS_TRANSPORTISTAS creada correctamente.
 
 -----------------------------------------------ESTADOS_LABORATORIOS--------------------------------------------------------
 CREATE TABLE ESTADOS_LABORATORIOS 
@@ -248,27 +248,27 @@ prompt --> Tabla ESTADOS_LABORATORIOS creada correctamente.
 CREATE TABLE TIPOS_MOVIMIENTOS 
 (
   ID_T_MOVIMIENTO INTEGER 
-, NOMBRE_T_MOVIMIENTO VARCHAR2(10) 
+, NOMBRE_T_MOVIMIENTO VARCHAR2(40) 
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla TIPOS_MOVIMIENTOS creada correctamente.
 
------------------------------------------------TIPO_DESCUENTO--------------------------------------------------------
-CREATE TABLE TIPO_DESCUENTO 
+-----------------------------------------------TIPOS_DESCUENTOS--------------------------------------------------------
+CREATE TABLE TIPOS_DESCUENTOS 
 (
   ID_TIPO_DESC INTEGER 
 , NOMBRE_TIPO_DESC VARCHAR2(15) 
 )
 TABLESPACE ts_naturaantioquia;
-prompt --> Tabla TIPO_DESCUENTO creada correctamente.
------------------------------------------------TIPO_VALOR--------------------------------------------------------
-CREATE TABLE TIPO_VALOR 
+prompt --> Tabla TIPOS_DESCUENTOS creada correctamente.
+-----------------------------------------------TIPOS_VALORES--------------------------------------------------------
+CREATE TABLE TIPOS_VALORES 
 (
   ID_TIPO_VALOR INTEGER 
 , NOMBRE_TIPO_VALOR VARCHAR2(10) 
 )
 TABLESPACE ts_naturaantioquia;
-prompt --> Tabla TIPO_VALOR creada correctamente.
+prompt --> Tabla TIPOS_VALORES creada correctamente.
 
 -----------------------------------------------CATEGORIAS--------------------------------------------------------
 CREATE TABLE CATEGORIAS 
@@ -448,3 +448,16 @@ CREATE TABLE DESCUENTOS_PRODUCTOS
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla DESCUENTOS_PRODUCTOS creada correctamente.
+
+
+------------------------------------------------LOGS--------------------------------------------------------
+CREATE TABLE LOGS 
+(
+  FECHA_AUD DATE 
+, USUARIO_AUD VARCHAR2(30) 
+, EVENTO_AUD VARCHAR2(7) 
+, MOMENTO_AUD VARCHAR2(30) 
+, ACCION_AUD VARCHAR2(4000) 
+)
+TABLESPACE ts_naturaantioquia;
+prompt --> Tabla LOGS creada correctamente.
