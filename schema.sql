@@ -7,7 +7,8 @@ prompt |    en la Base de Datos           |
 prompt |          naturantioquia          |
 prompt +----------------------------------+
 
-connect system/--contraseña_system
+connect system/sqlOracleDB2
+--contraseña_system
 
 show con_name
 

@@ -10,10 +10,10 @@ prompt |  Constraints para la Tabla ESTADOS_USUARIOS  |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE ESTADOS_USUARIOS
-ADD CONSTRAINT pk_id_estado_usuarios PRIMARY KEY (ID_ESTADO_USUARIOS);
+ADD CONSTRAINT pk_id_estado_usuarios PRIMARY KEY (estado_usuario.id);
 
 ALTER TABLE ESTADOS_USUARIOS
-ADD CONSTRAINT nn_nombre_estado_usuarios CHECK (NOMBRE_ESTADO IS NOT NULL);
+ADD CONSTRAINT nn_nombre_estado_usuarios CHECK (estado_usuario.nombre IS NOT NULL);
 
 ------------------------------------------TIPOS_DOCUMENTOS-------------------------------------------------------------
 
@@ -22,10 +22,10 @@ prompt |  Constraints para la Tabla TIPOS_DOCUMENTOS  |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE TIPOS_DOCUMENTOS
-ADD CONSTRAINT pk_id_documento_tipos_documentos PRIMARY KEY (ID_DOCUMENTO);
+ADD CONSTRAINT pk_id_documento_tipos_documentos PRIMARY KEY (tipo_documento.id );
 
 ALTER TABLE TIPOS_DOCUMENTOS
-ADD CONSTRAINT nn_nom_documento_tipos_documentos CHECK (NOMBRE_DOCUMENTO IS NOT NULL);
+ADD CONSTRAINT nn_nom_documento_tipos_documentos CHECK ( tipo_documento.nombre IS NOT NULL);
 
 
 ------------------------------------------ROLES-------------------------------------------------------------
@@ -35,10 +35,10 @@ prompt |  Constraints para la Tabla ROLES  |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE ROLES
-ADD CONSTRAINT nn_rol_roles CHECK (ROL IS NOT NULL);
+ADD CONSTRAINT nn_rol_roles CHECK (rol.nombre IS NOT NULL);
 
 ALTER TABLE ROLES
-ADD CONSTRAINT pk_id_rol_roles PRIMARY KEY (ID_ROL);
+ADD CONSTRAINT pk_id_rol_roles PRIMARY KEY ( rol.id);
 
 ------------------------------------------SEXOS-------------------------------------------------------------
 
@@ -47,10 +47,10 @@ prompt |  Constraints para la Tabla SEXOS       |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE SEXOS
-ADD CONSTRAINT nn_nombre_sexo_sexos CHECK (NOMBRE_SEXO IS NOT NULL);
+ADD CONSTRAINT nn_nombre_sexo_sexos CHECK (sexo.nombre IS NOT NULL);
 
 ALTER TABLE SEXOS
-ADD CONSTRAINT pk_id_sexo_sexos PRIMARY KEY (ID_SEXO);
+ADD CONSTRAINT pk_id_sexo_sexos PRIMARY KEY (sexo.id);
 
 
 ------------------------------------------DEPARTAMENTOS-------------------------------------------------------------
@@ -191,7 +191,7 @@ ADD CONSTRAINT pk_id_perfil_id_formulario_perfiles PRIMARY KEY (ID_PERFIL, ID_FO
 ALTER TABLE PERFILES
 ADD CONSTRAINT fk_id_perfil_perfiles
 FOREIGN KEY (ID_PERFIL)
-REFERENCES ROLES(ID_ROL);
+REFERENCES ROLES(rol.id);
 
 ALTER TABLE PERFILES
 ADD CONSTRAINT fk_id_formulario_perfiles
@@ -205,13 +205,13 @@ prompt |  Constraints para la Tabla  USUARIOS |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE USUARIOS
-ADD CONSTRAINT nn_nombre_usuario_usuarios CHECK (NOMBRE_USUARIO IS NOT NULL);
+ADD CONSTRAINT nn_nombre_usuario_usuarios CHECK ( datos_usuario.nombre IS NOT NULL);
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT nn_primer_apellido_usuario_usuarios CHECK (PRIMER_APELLIDO_USUARIO IS NOT NULL);
 
 ALTER TABLE USUARIOS
-ADD CONSTRAINT nn_correo_usuario_usuarios CHECK (CORREO_USUARIO IS NOT NULL);
+ADD CONSTRAINT nn_correo_usuario_usuarios CHECK (datos_usuario.correo IS NOT NULL);
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT nn_password_usuario_usuarios CHECK (PASSWORD_USUARIO IS NOT NULL);
@@ -220,7 +220,7 @@ ALTER TABLE USUARIOS
 ADD CONSTRAINT nn_fecha_nacimiento_usuario_usuarios CHECK (FECHA_NACIMIENTO_USUARIO IS NOT NULL);
 
 ALTER TABLE USUARIOS
-ADD CONSTRAINT nn_celular_usuario_usuarios CHECK (CELULAR_USUARIO IS NOT NULL);
+ADD CONSTRAINT nn_celular_usuario_usuarios CHECK (datos_usuario.telefono.movil IS NOT NULL);
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT nn_tipo_documento_usuario_usuarios CHECK (TIPO_DOCUMENTO IS NOT NULL);
@@ -238,28 +238,28 @@ ALTER TABLE USUARIOS
 ADD CONSTRAINT pk_documento_usuario_usuarios PRIMARY KEY (DOCUMENTO_USUARIO);
 
 ALTER TABLE USUARIOS
-ADD CONSTRAINT uk_correo_usuario UNIQUE (CORREO_USUARIO);
+ADD CONSTRAINT uk_correo_usuario UNIQUE (datos_usuario.correo);
 
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT fk_sexo_usuario_usuarios
 FOREIGN KEY (SEXO_USUARIO)
-REFERENCES SEXOS(ID_SEXO);
+REFERENCES SEXOS(sexo.id);
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT fk_tipo_documento_usuario_usuarios
 FOREIGN KEY (TIPO_DOCUMENTO)
-REFERENCES TIPOS_DOCUMENTOS(ID_DOCUMENTO);
+REFERENCES TIPOS_DOCUMENTOS(tipo_documento.id);
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT fk_estado_usuario_usuarios
 FOREIGN KEY (ESTADO_USUARIO)
-REFERENCES ESTADOS_USUARIOS(ID_ESTADO_USUARIOS);
+REFERENCES ESTADOS_USUARIOS(estado_usuario.id);
 
 ALTER TABLE USUARIOS
 ADD CONSTRAINT fk_rol_usuario_usuarios
 FOREIGN KEY (ROL_USUARIO)
-REFERENCES ROLES(ID_ROL);
+REFERENCES ROLES(rol.id);
 
 -----------------------------------------------SEGUIMIENTOS--------------------------------------------------------
 
@@ -268,10 +268,10 @@ prompt |      Constraints para la Tabla SEGUIMIENTOS        |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE SEGUIMIENTOS
-ADD CONSTRAINT nn_nombre_seguimiento_seguimientos CHECK (NOMBRE_SEGUIMIENTO IS NOT NULL);
+ADD CONSTRAINT nn_nombre_seguimiento_seguimientos CHECK (seguimiento.nombre IS NOT NULL);
 
 ALTER TABLE SEGUIMIENTOS
-ADD CONSTRAINT pk_id_seguimiento_seguimientos PRIMARY KEY (ID_SEGUIMIENTO);
+ADD CONSTRAINT pk_id_seguimiento_seguimientos PRIMARY KEY (seguimiento.id);
 
 -----------------------------------------------PRIORIDADES--------------------------------------------------------
 
@@ -280,10 +280,10 @@ prompt |     Constraints para la Tabla PRIORIDADES      |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE PRIORIDADES
-ADD CONSTRAINT nn_nombre_prioridades_prioridades CHECK (NOMBRE_PRIORIDADES IS NOT NULL);
+ADD CONSTRAINT nn_nombre_prioridades_prioridades CHECK (prioridad.nombre IS NOT NULL);
 
 ALTER TABLE PRIORIDADES
-ADD CONSTRAINT pk_id_prioridad_prioridades PRIMARY KEY (ID_PRIORIDAD);
+ADD CONSTRAINT pk_id_prioridad_prioridades PRIMARY KEY (prioridad.id);
 
 -----------------------------------------------TIPOS_TRANSPORTISTAS--------------------------------------------------------
 
@@ -292,10 +292,10 @@ prompt |    Constraints para la Tabla TIPOS_TRANSPORTISTAS      |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE TIPOS_TRANSPORTISTAS
-ADD CONSTRAINT nn_nombre_prioridades_tipo_transportista CHECK (NOMBRE_PRIORIDADES IS NOT NULL);
+ADD CONSTRAINT nn_nombre_prioridades_tipo_transportista CHECK (tipo_transportista.nombre IS NOT NULL);
 
 ALTER TABLE TIPOS_TRANSPORTISTAS
-ADD CONSTRAINT pk_id_tipo_transportista PRIMARY KEY (ID_TIPO_TRANSPORTISTA);
+ADD CONSTRAINT pk_id_tipo_transportista PRIMARY KEY (tipo_transportista.id);
 
 -----------------------------------------------ESTADOS_LABORATORIOS--------------------------------------------------------
 
@@ -304,10 +304,10 @@ prompt |  Constraints para la Tabla ESTADOS_LABORATORIOS    |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE ESTADOS_LABORATORIOS
-ADD CONSTRAINT nn_nombre_estado_laboratorio CHECK (NOMBRE_EST_LAB IS NOT NULL);
+ADD CONSTRAINT nn_nombre_estado_laboratorio CHECK (estado_laboratorio.nombre IS NOT NULL);
 
 ALTER TABLE ESTADOS_LABORATORIOS
-ADD CONSTRAINT pk_id_estado_laboratorio PRIMARY KEY (ID_ESTADO_LAB);
+ADD CONSTRAINT pk_id_estado_laboratorio PRIMARY KEY (estado_laboratorio.id);
 
 -----------------------------------------------TIPOS_MOVIMIENTOS--------------------------------------------------------
 
@@ -316,10 +316,10 @@ prompt |     Constraints para la Tabla TIPOS_MOVIMIENTOS    |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE TIPOS_MOVIMIENTOS
-ADD CONSTRAINT nn_nombre_t_movimiento_tipos_movimientos CHECK (NOMBRE_T_MOVIMIENTO IS NOT NULL);
+ADD CONSTRAINT nn_nombre_t_movimiento_tipos_movimientos CHECK (tipo_movimiento.nombre IS NOT NULL);
 
 ALTER TABLE TIPOS_MOVIMIENTOS
-ADD CONSTRAINT pk_id_t_movimiento_tipos_movimientos PRIMARY KEY (ID_T_MOVIMIENTO);
+ADD CONSTRAINT pk_id_t_movimiento_tipos_movimientos PRIMARY KEY (tipo_movimiento.id);
 
 -----------------------------------------------TIPOS_DESCUENTOS--------------------------------------------------------
 
@@ -328,10 +328,10 @@ prompt |  Constraints para la Tabla TIPOS_DESCUENTOS   |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE TIPOS_DESCUENTOS
-ADD CONSTRAINT nn_nombre_tipo_descuento_tipo_descuento CHECK (NOMBRE_TIPO_DESC IS NOT NULL);
+ADD CONSTRAINT nn_nombre_tipo_descuento_tipo_descuento CHECK (tipo_descuento.nombre IS NOT NULL);
 
 ALTER TABLE TIPOS_DESCUENTOS
-ADD CONSTRAINT pk_id_tipo_descuento_tipo_descuento PRIMARY KEY (ID_TIPO_DESC);
+ADD CONSTRAINT pk_id_tipo_descuento_tipo_descuento PRIMARY KEY (tipo_descuento.id );
 
 -----------------------------------------------TIPOS_VALORES--------------------------------------------------------
 
@@ -340,10 +340,10 @@ prompt |     Constraints para la Tabla TIPOS_VALORES      |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE TIPOS_VALORES
-ADD CONSTRAINT nn_nombre_tipo_valor_tipo_valor CHECK (NOMBRE_TIPO_VALOR IS NOT NULL);
+ADD CONSTRAINT nn_nombre_tipo_valor_tipo_valor CHECK (tipo_valor.nombre IS NOT NULL);
 
 ALTER TABLE TIPOS_VALORES
-ADD CONSTRAINT pk_id_tipo_valor_tipo_valor PRIMARY KEY (ID_TIPO_VALOR);
+ADD CONSTRAINT pk_id_tipo_valor_tipo_valor PRIMARY KEY (tipo_valor.id);
 
 -----------------------------------------------CATEGORIAS--------------------------------------------------------
 
@@ -352,10 +352,10 @@ prompt |  Constraints para la Tabla CATEGORIAS  |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE CATEGORIAS
-ADD CONSTRAINT nn_nombre_categoria_categorias CHECK (NOMBRE_CATEGORIA IS NOT NULL);
+ADD CONSTRAINT nn_nombre_categoria_categorias CHECK (categoria.nombre IS NOT NULL);
 
 ALTER TABLE CATEGORIAS
-ADD CONSTRAINT pk_id_categoria_categorias PRIMARY KEY (ID_CATEGORIA);
+ADD CONSTRAINT pk_id_categoria_categorias PRIMARY KEY (categoria.id );
 
 
 -----------------------------------------------LABORATORIOS--------------------------------------------------------
@@ -365,15 +365,15 @@ prompt |  Constraints para la Tabla LABORATORIOS  |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE LABORATORIOS
-ADD CONSTRAINT nn_nombre_laboratorios CHECK (NOMBRE_LABORATORIO IS NOT NULL);
+ADD CONSTRAINT nn_nombre_laboratorios CHECK (datos_laboratorios.nombre IS NOT NULL);
 
 ALTER TABLE LABORATORIOS
-ADD CONSTRAINT nn_correo_laboratorios CHECK (CORREO IS NOT NULL);
+ADD CONSTRAINT nn_correo_laboratorios CHECK (datos_laboratorios.correo IS NOT NULL);
 
-CREATE UNIQUE INDEX unq_correo_laboratorios ON LABORATORIOS (CORREO);
+CREATE UNIQUE INDEX unq_correo_laboratorios ON LABORATORIOS (datos_laboratorios.correo);
 
 ALTER TABLE LABORATORIOS
-ADD CONSTRAINT nn_celular_laboratorios CHECK (CELULAR IS NOT NULL);
+ADD CONSTRAINT nn_celular_laboratorios CHECK (datos_laboratorios.telefono.movil IS NOT NULL);
 
 ALTER TABLE LABORATORIOS
 ADD CONSTRAINT nn_estado_laboratorio_laboratorios CHECK (ESTADO_LABORATORIO IS NOT NULL);
@@ -384,7 +384,7 @@ ADD CONSTRAINT pk_id_laboratorio_laboratorios PRIMARY KEY (ID_LABORATORIO);
 ALTER TABLE LABORATORIOS
 ADD CONSTRAINT fk_estado_laboratorio_laboratorios
 FOREIGN KEY (ESTADO_LABORATORIO)
-REFERENCES ESTADOS_LABORATORIOS(ID_ESTADO_LAB);
+REFERENCES ESTADOS_LABORATORIOS(estado_laboratorio.id);
 
 -----------------------------------------------TRANSPORTISTAS--------------------------------------------------------
 
@@ -393,15 +393,15 @@ prompt |      Constraints para la Tabla TRANSPORTISTAS      |
 prompt +--------------------------------------------------------+
 
 ALTER TABLE TRANSPORTISTAS
-ADD CONSTRAINT nn_nombre_transportistas CHECK (NOMBRE IS NOT NULL);
+ADD CONSTRAINT nn_nombre_transportistas CHECK (datos_transportistas.nombre IS NOT NULL);
 
 ALTER TABLE TRANSPORTISTAS
-ADD CONSTRAINT nn_celular_transportistas CHECK (CELULAR IS NOT NULL);
+ADD CONSTRAINT nn_celular_transportistas CHECK (datos_transportistas.telefono.movil IS NOT NULL);
 
 ALTER TABLE TRANSPORTISTAS
-ADD CONSTRAINT nn_correo_transportistas CHECK (CORREO IS NOT NULL);
+ADD CONSTRAINT nn_correo_transportistas CHECK (datos_transportistas.correo IS NOT NULL);
 
-CREATE UNIQUE INDEX unq_correo_transportistas ON TRANSPORTISTAS (CORREO);
+CREATE UNIQUE INDEX unq_correo_transportistas ON TRANSPORTISTAS (datos_transportistas.correo);
 
 ALTER TABLE TRANSPORTISTAS
 ADD CONSTRAINT nn_tipo_transportistas CHECK (TIPO IS NOT NULL);
@@ -412,7 +412,7 @@ ADD CONSTRAINT pk_id_transportista_transportistas PRIMARY KEY (ID_TRANSPORTISTA)
 ALTER TABLE TRANSPORTISTAS
 ADD CONSTRAINT fk_tipo_transportistas
 FOREIGN KEY (TIPO)
-REFERENCES TIPOS_TRANSPORTISTAS(ID_TIPO_TRANSPORTISTA);
+REFERENCES TIPOS_TRANSPORTISTAS(tipo_transportista.id );
 
 -----------------------------------------------PRODUCTOS--------------------------------------------------------
 
@@ -516,7 +516,7 @@ REFERENCES LOTES_PRODUCTOS(ID_LOTE);
 ALTER TABLE MOVIMIENTOS_INVENTARIO
 ADD CONSTRAINT fk_tipo_movimiento_movimientos_inventario
 FOREIGN KEY (TIPO_MOVIMIENTO)
-REFERENCES TIPOS_MOVIMIENTOS(ID_T_MOVIMIENTO);
+REFERENCES TIPOS_MOVIMIENTOS(tipo_movimiento.id);
 
 ------------------------------------------------IMAGENES_PRODUCTOS--------------------------------------------------------
 
@@ -591,12 +591,12 @@ ADD CONSTRAINT pk_id_pedidos_pedidos PRIMARY KEY (ID_PEDIDOS);
 ALTER TABLE PEDIDOS
 ADD CONSTRAINT fk_prioridad_pedidos
 FOREIGN KEY (PRIORIDAD)
-REFERENCES PRIORIDADES(ID_PRIORIDAD);
+REFERENCES PRIORIDADES(prioridad.id );
 
 ALTER TABLE PEDIDOS
 ADD CONSTRAINT fk_seguimiento_pedidos
 FOREIGN KEY (SEGUIMIENTO)
-REFERENCES SEGUIMIENTOS(ID_SEGUIMIENTO);
+REFERENCES SEGUIMIENTOS( seguimiento.id);
 
 ALTER TABLE PEDIDOS
 ADD CONSTRAINT fk_usuario_direccion_pedidos
@@ -616,7 +616,7 @@ ADD CONSTRAINT pk_id_categoria_id_producto_categorias_productos PRIMARY KEY (ID_
 ALTER TABLE CATEGORIAS_PRODUCTOS
 ADD CONSTRAINT fk_id_categoria_categorias_productos
 FOREIGN KEY (ID_CATEGORIA)
-REFERENCES CATEGORIAS(ID_CATEGORIA);
+REFERENCES CATEGORIAS(categoria.id);
 
 ALTER TABLE CATEGORIAS_PRODUCTOS
 ADD CONSTRAINT fk_id_producto_categorias_productos
@@ -734,17 +734,17 @@ ADD CONSTRAINT pk_id_descuento_descuentos PRIMARY KEY (ID_DESCUENTO);
 ALTER TABLE DESCUENTOS
 ADD CONSTRAINT fk_tipo_descuento_descuentos
 FOREIGN KEY (TIPO_DESCUENTO)
-REFERENCES TIPOS_DESCUENTOS(ID_TIPO_DESC);
+REFERENCES TIPOS_DESCUENTOS(tipo_descuento.id);
 
 ALTER TABLE DESCUENTOS
 ADD CONSTRAINT fk_tipo_valor_descuentos
 FOREIGN KEY (TIPO_VALOR)
-REFERENCES TIPOS_VALORES(ID_TIPO_VALOR);
+REFERENCES TIPOS_VALORES(tipo_valor.id );
 
 ALTER TABLE DESCUENTOS
 ADD CONSTRAINT fk_id_categoria_descuentos
 FOREIGN KEY (ID_CATEGORIA)
-REFERENCES CATEGORIAS(ID_CATEGORIA);
+REFERENCES CATEGORIAS(categoria.id );
 
 ------------------------------------------------DESCUENTOS_PRODUCTOS--------------------------------------------------------
 

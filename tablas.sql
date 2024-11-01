@@ -85,8 +85,7 @@ prompt +-------------------------------------------------+
 
 ---------------------------------------ESTADOS_USUARIOS----------------------------------------------------------------
 CREATE TABLE ESTADOS_USUARIOS (
-    ID_ESTADO_USUARIOS INTEGER,
-    NOMBRE_ESTADO NVARCHAR2(10)
+    estado_usuario elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla ESTADOS_USUARIOS creada correctamente.
@@ -94,8 +93,7 @@ prompt --> Tabla ESTADOS_USUARIOS creada correctamente.
 ------------------------------------------TIPOS_DOCUMENTOS-------------------------------------------------------------
 CREATE TABLE TIPOS_DOCUMENTOS 
 (
-  ID_DOCUMENTO INTEGER 
-, NOMBRE_DOCUMENTO VARCHAR2(50) 
+  tipo_documento elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla TIPOS_DOCUMENTOS creada correctamente.
@@ -103,8 +101,7 @@ prompt --> Tabla TIPOS_DOCUMENTOS creada correctamente.
 ------------------------------------------ROLES-------------------------------------------------------------
 CREATE TABLE ROLES 
 (
-  ID_ROL INTEGER 
-, ROL VARCHAR2(20) 
+  rol elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla ROLES creada correctamente.
@@ -112,8 +109,7 @@ prompt --> Tabla ROLES creada correctamente.
 ------------------------------------------SEXOS-------------------------------------------------------------
 CREATE TABLE SEXOS 
 (
-  ID_SEXO INTEGER 
-, NOMBRE_SEXO VARCHAR2(20) 
+  sexo elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla SEXOS creada correctamente.
@@ -192,14 +188,11 @@ prompt --> Tabla FORMULARIOS creada correctamente.
 CREATE TABLE USUARIOS 
 (
   DOCUMENTO_USUARIO INTEGER 
-, NOMBRE_USUARIO VARCHAR2(100) 
+, datos_usuario            contacto
 , PRIMER_APELLIDO_USUARIO VARCHAR2(50) 
 , SEGUNDO_APELLIDO_USUARIO VARCHAR2(50) 
-, CORREO_USUARIO VARCHAR2(100) 
 , PASSWORD_USUARIO VARCHAR2(100) 
 , FECHA_NACIMIENTO_USUARIO DATE 
-, CELULAR_USUARIO NUMBER(10) 
-, TELEFONO_USUARIO NUMBER(10) 
 , TIPO_DOCUMENTO INTEGER 
 , ESTADO_USUARIO INTEGER 
 , SEXO_USUARIO INTEGER 
@@ -211,8 +204,7 @@ prompt --> Tabla USUARIOS creada correctamente.
 -----------------------------------------------SEGUIMIENTOS--------------------------------------------------------
 CREATE TABLE SEGUIMIENTOS 
 (
-  ID_SEGUIMIENTO INTEGER 
-, NOMBRE_SEGUIMIENTO VARCHAR2(20) 
+  seguimiento elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla SEGUIMIENTOS creada correctamente.
@@ -220,8 +212,7 @@ prompt --> Tabla SEGUIMIENTOS creada correctamente.
 -----------------------------------------------PRIORIDADES--------------------------------------------------------
 CREATE TABLE PRIORIDADES 
 (
-  ID_PRIORIDAD INTEGER 
-, NOMBRE_PRIORIDADES VARCHAR2(20) 
+  prioridad elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla PRIORIDADES creada correctamente.
@@ -229,8 +220,7 @@ prompt --> Tabla PRIORIDADES creada correctamente.
 -----------------------------------------------TIPOS_TRANSPORTISTAS--------------------------------------------------------
 CREATE TABLE TIPOS_TRANSPORTISTAS 
 (
-  ID_TIPO_TRANSPORTISTA INTEGER 
-, NOMBRE_PRIORIDADES VARCHAR2(50) 
+  tipo_transportista elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla TIPOS_TRANSPORTISTAS creada correctamente.
@@ -238,8 +228,7 @@ prompt --> Tabla TIPOS_TRANSPORTISTAS creada correctamente.
 -----------------------------------------------ESTADOS_LABORATORIOS--------------------------------------------------------
 CREATE TABLE ESTADOS_LABORATORIOS 
 (
-  ID_ESTADO_LAB INTEGER 
-, NOMBRE_EST_LAB VARCHAR2(50) 
+  estado_laboratorio elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla ESTADOS_LABORATORIOS creada correctamente.
@@ -247,8 +236,7 @@ prompt --> Tabla ESTADOS_LABORATORIOS creada correctamente.
 -----------------------------------------------TIPOS_MOVIMIENTOS--------------------------------------------------------
 CREATE TABLE TIPOS_MOVIMIENTOS 
 (
-  ID_T_MOVIMIENTO INTEGER 
-, NOMBRE_T_MOVIMIENTO VARCHAR2(40) 
+  tipo_movimiento elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla TIPOS_MOVIMIENTOS creada correctamente.
@@ -256,16 +244,14 @@ prompt --> Tabla TIPOS_MOVIMIENTOS creada correctamente.
 -----------------------------------------------TIPOS_DESCUENTOS--------------------------------------------------------
 CREATE TABLE TIPOS_DESCUENTOS 
 (
-  ID_TIPO_DESC INTEGER 
-, NOMBRE_TIPO_DESC VARCHAR2(15) 
+  tipo_descuento elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla TIPOS_DESCUENTOS creada correctamente.
 -----------------------------------------------TIPOS_VALORES--------------------------------------------------------
 CREATE TABLE TIPOS_VALORES 
 (
-  ID_TIPO_VALOR INTEGER 
-, NOMBRE_TIPO_VALOR VARCHAR2(10) 
+  tipo_valor elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla TIPOS_VALORES creada correctamente.
@@ -273,8 +259,7 @@ prompt --> Tabla TIPOS_VALORES creada correctamente.
 -----------------------------------------------CATEGORIAS--------------------------------------------------------
 CREATE TABLE CATEGORIAS 
 (
-  ID_CATEGORIA INTEGER 
-, NOMBRE_CATEGORIA VARCHAR2(50) 
+  categoria elemento
 )
 TABLESPACE ts_naturaantioquia;
 prompt --> Tabla CATEGORIAS creada correctamente.
@@ -282,10 +267,7 @@ prompt --> Tabla CATEGORIAS creada correctamente.
 CREATE TABLE LABORATORIOS 
 (
   ID_LABORATORIO INTEGER 
-, NOMBRE_LABORATORIO VARCHAR2(100) 
-, CORREO VARCHAR2(100) 
-, TELEFONO INTEGER 
-, CELULAR INTEGER 
+, datos_laboratorios contacto 
 , ESTADO_LABORATORIO INTEGER 
 )
 TABLESPACE ts_naturaantioquia;
@@ -295,10 +277,7 @@ prompt --> Tabla LABORATORIOS creada correctamente.
 CREATE TABLE TRANSPORTISTAS 
 (
   ID_TRANSPORTISTA INTEGER 
-, NOMBRE VARCHAR2(150) 
-, CELULAR INTEGER 
-, TELEFONO INTEGER 
-, CORREO VARCHAR2(100) 
+, datos_transportistas contacto
 , TIPO INTEGER 
 )
 TABLESPACE ts_naturaantioquia;
