@@ -48,20 +48,20 @@ BEGIN
     -- Determina el tipo de evento
     IF INSERTING THEN
         v_evento := 'INSERT';
-        SELECT seq_estado_lab.NEXTVAL INTO :NEW.ID_ESTADO_LAB FROM dual;
-       v_accion := '1. ID_ESTADO_LAB: ' || :NEW.ID_ESTADO_LAB || ' | 2.NOMBRE_EST_LAB: ' || :NEW.NOMBRE_EST_LAB ;
+        SELECT seq_estado_lab.NEXTVAL INTO :NEW.estado_laboratorio.id FROM dual;
+       v_accion := '1. estado_laboratorio.id: ' || :NEW.estado_laboratorio.id || ' | 2.estado_laboratorio.nombre: ' || :NEW.estado_laboratorio.nombre ;
         --Preparar acción tabla log
-        v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_ESTADO_LAB: ' || :NEW.ID_ESTADO_LAB || ' , 2.NOMBRE_EST_LAB: ' || :NEW.NOMBRE_EST_LAB ;
+        v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. estado_laboratorio.id: ' || :NEW.estado_laboratorio.id || ' , 2.estado_laboratorio.nombre: ' || :NEW.estado_laboratorio.nombre ;
 
 
     ELSIF UPDATING THEN
         v_evento := 'UPDATE';
-        v_accion := 'Old 1. ID_ESTADO_LAB : ' || :OLD.ID_ESTADO_LAB || ' | 2.NOMBRE_EST_LAB : ' || :OLD.NOMBRE_EST_LAB || ' || New 1. ID_ESTADO_LAB: ' || :NEW.ID_ESTADO_LAB || ' | 2.NOMBRE_EST_LAB : ' || :NEW.NOMBRE_EST_LAB;
-        v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_ESTADO_LAB_OLD : ' || :OLD.ID_ESTADO_LAB || ' , 2.NOMBRE_EST_LAB_OLD : ' || :OLD.NOMBRE_EST_LAB || ' , 1. ID_ESTADO_LAB_NEW: ' || :NEW.ID_ESTADO_LAB || ' , 2.NOMBRE_EST_LAB_new: ' || :NEW.NOMBRE_EST_LAB;
+        v_accion := 'Old 1. estado_laboratorio.id : ' || :OLD.estado_laboratorio.id || ' | 2.estado_laboratorio.nombre : ' || :OLD.estado_laboratorio.nombre || ' || New 1. estado_laboratorio.id: ' || :NEW.estado_laboratorio.id || ' | 2.estado_laboratorio.nombre : ' || :NEW.estado_laboratorio.nombre;
+        v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. estado_laboratorio.id_OLD : ' || :OLD.estado_laboratorio.id || ' , 2.estado_laboratorio.nombre_OLD : ' || :OLD.estado_laboratorio.nombre || ' , 1. estado_laboratorio.id_NEW: ' || :NEW.estado_laboratorio.id || ' , 2.estado_laboratorio.nombre_new: ' || :NEW.estado_laboratorio.nombre;
     ELSIF DELETING THEN
         v_evento := 'DELETE';
-        v_accion := 'Old 1.ID_ESTADO_LAB : ' || :OLD.ID_ESTADO_LAB || ' | 2.NOMBRE_EST_LAB: ' || :OLD.NOMBRE_EST_LAB || ' || New 1. ID_ESTADO_LAB: ' || :NEW.ID_ESTADO_LAB || ' | 2.NOMBRE_EST_LAB : ' || :NEW.NOMBRE_EST_LAB;
-        v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_ESTADO_LAB_OLD : ' || :OLD.ID_ESTADO_LAB || ' , 2.NOMBRE_EST_LAB_OLD : ' || :OLD.NOMBRE_EST_LAB || ' , 1. ID_ESTADO_LAB_NEW: ' || :NEW.ID_ESTADO_LAB || ' , 2.NOMBRE_EST_LAB_new: ' || :NEW.NOMBRE_EST_LAB;
+        v_accion := 'Old 1.estado_laboratorio.id : ' || :OLD.estado_laboratorio.id || ' | 2.estado_laboratorio.nombre: ' || :OLD.estado_laboratorio.nombre || ' || New 1. estado_laboratorio.id: ' || :NEW.estado_laboratorio.id || ' | 2.estado_laboratorio.nombre : ' || :NEW.estado_laboratorio.nombre;
+        v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. estado_laboratorio.id_OLD : ' || :OLD.estado_laboratorio.id || ' , 2.estado_laboratorio.nombre_OLD : ' || :OLD.estado_laboratorio.nombre || ' , 1. estado_laboratorio.id_NEW: ' || :NEW.estado_laboratorio.id || ' , 2.estado_laboratorio.nombre_new: ' || :NEW.estado_laboratorio.nombre;
 
     END IF;
 
