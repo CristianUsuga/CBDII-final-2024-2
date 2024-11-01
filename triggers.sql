@@ -65,144 +65,13 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            DBMS_OUTPUT.PUT_LINE('Contactar con el encargado.');
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                   DBMS_OUTPUT.PUT_LINE('Contactar con el encargado.');
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -248,143 +117,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -439,143 +177,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -621,143 +228,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
-        
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+      
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+    
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -814,143 +290,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -996,143 +341,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -1184,143 +398,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -1366,143 +449,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -1554,143 +506,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -1736,143 +557,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -1925,143 +615,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -2105,143 +664,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -2292,143 +720,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -2471,143 +768,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -2661,143 +827,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -2840,143 +875,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -3030,143 +934,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -3210,143 +983,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -3402,143 +1044,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -3581,143 +1092,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -3772,143 +1152,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -3951,143 +1200,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -4138,143 +1256,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -4317,143 +1304,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -4504,143 +1360,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -4683,143 +1408,12 @@ BEGIN
 
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -4871,143 +1465,12 @@ BEGIN
         v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_DEPARTAMENTO_OLD : ' || :OLD.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_OLD : '|| :NEW.ID_CIUDAD || ' ,  3.NOMBRE_CIUDAD_OLD: '  || :OLD.ID_CIUDAD || ' , 1. ID_DEPARTAMENTO_NEW: ' || :NEW.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_NEW: ' || :NEW.ID_CIUDAD || ' ,  3.NOMBRE_CIUDAD_NEW: ' || :NEW.NOMBRE_CIUDAD;
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -5049,143 +1512,12 @@ BEGIN
         v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_DEPARTAMENTO_OLD : ' || :OLD.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_OLD : '|| :NEW.ID_CIUDAD || ' ,  3.NOMBRE_CIUDAD_OLD: '  || :OLD.ID_CIUDAD || ' , 1. ID_DEPARTAMENTO_NEW: ' || :NEW.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_NEW: ' || :NEW.ID_CIUDAD || ' ,  3.NOMBRE_CIUDAD_NEW: ' || :NEW.NOMBRE_CIUDAD;
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -5237,143 +1569,12 @@ BEGIN
         v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_DEPARTAMENTO_OLD : ' || :OLD.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_OLD : '|| :NEW.ID_CIUDAD || ' ,  3.ID_BARRIO_OLD: '  || :OLD.ID_CIUDAD || ' ,  4.NOMBRE_BARRIO_OLD: '  || :OLD.NOMBRE_BARRIO || ' , 1. ID_DEPARTAMENTO_NEW: ' || :NEW.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_NEW: ' || :NEW.ID_CIUDAD || ' ,  3.ID_BARRIO_NEW: ' || :NEW.ID_BARRIO || ' ,  4.NOMBRE_BARRIO_NEW: '  || :NEW.NOMBRE_BARRIO;
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -5415,143 +1616,12 @@ BEGIN
         v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_DEPARTAMENTO_OLD : ' || :OLD.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_OLD : '|| :NEW.ID_CIUDAD || ' ,  3.ID_BARRIO_OLD: '  || :OLD.ID_CIUDAD || ' ,  4.NOMBRE_BARRIO_OLD: '  || :OLD.NOMBRE_BARRIO || ' , 1. ID_DEPARTAMENTO_NEW: ' || :NEW.ID_DEPARTAMENTO || ' , 2.ID_CIUDAD_NEW: ' || :NEW.ID_CIUDAD || ' ,  3.ID_BARRIO_NEW: ' || :NEW.ID_BARRIO || ' ,  4.NOMBRE_BARRIO_NEW: '  || :NEW.NOMBRE_BARRIO;
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -5602,143 +1672,12 @@ BEGIN
         v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_DIRECCION_OLD : ' || :OLD.ID_DIRECCION || ' , 2.DESCRIPCION_DIRECCION_OLD : '|| :NEW.DESCRIPCION_DIRECCION || ' ,  3.DEPARTAMENTO_OLD: '  || :OLD.DESCRIPCION_DIRECCION || ' ,  4.CIUDAD_OLD: '  || :OLD.CIUDAD|| ' ,  5.BARRIO_OLD: '  || :OLD.BARRIO|| ' , 1. ID_DIRECCION_NEW: ' || :NEW.ID_DIRECCION || ' , 2.DESCRIPCION_DIRECCION_NEW: ' || :NEW.DESCRIPCION_DIRECCION || ' ,  3.DEPARTAMENTO_NEW: ' || :NEW.DEPARTAMENTO || ' ,  4.CIUDAD_NEW: '  || :NEW.CIUDAD || ' ,  5.NEW_OLD: '  || :NEW.BARRIO;
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -5780,143 +1719,12 @@ BEGIN
         v_accion_aud := 'TABLA: ' || v_tabla || ' , 1. ID_DIRECCION_OLD : ' || :OLD.ID_DIRECCION || ' , 2.DESCRIPCION_DIRECCION_OLD : '|| :NEW.DESCRIPCION_DIRECCION || ' ,  3.DEPARTAMENTO_OLD: '  || :OLD.DESCRIPCION_DIRECCION || ' ,  4.CIUDAD_OLD: '  || :OLD.CIUDAD|| ' ,  5.BARRIO_OLD: '  || :OLD.BARRIO|| ' , 1. ID_DIRECCION_NEW: ' || :NEW.ID_DIRECCION || ' , 2.DESCRIPCION_DIRECCION_NEW: ' || :NEW.DESCRIPCION_DIRECCION || ' ,  3.DEPARTAMENTO_NEW: ' || :NEW.DEPARTAMENTO || ' ,  4.CIUDAD_NEW: '  || :NEW.CIUDAD || ' ,  5.NEW_OLD: '  || :NEW.BARRIO;
     END IF;
 
-    -- Obtener usuario y fecha
-    v_usuario := SYS_CONTEXT('USERENV', 'SESSION_USER');
-    v_fecha := SYSTIMESTAMP;
-    --Tabla Logs
-    INSERT INTO "US_NATURAANTIOQUIA"."LOGS" (FECHA_AUD, USUARIO_AUD, EVENTO_AUD, MOMENTO_AUD, ACCION_AUD) VALUES (v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
+  
+    -- Insertar en tabla Logs usando el paquete
+    pkg_logs.log_to_table(v_fecha, v_usuario, v_evento, v_momento, v_accion_aud);
     
-    -- Intentar abrir el archivo en modo lectura para verificar la cabecera
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-        -- Leer la primera línea del archivo
-        UTL_FILE.GET_LINE(v_archivo, v_primera_linea);
-        
-        IF v_primera_linea <> v_cabecera THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera diferente');
-            RAISE MAL_EDITADO;
-            
-        ELSIF v_primera_linea = v_cabecera THEN
-            v_existe_cabecera := TRUE;
-        END IF;
-        UTL_FILE.FCLOSE(v_archivo);
-    EXCEPTION
-        WHEN UTL_FILE.INVALID_PATH OR UTL_FILE.INVALID_OPERATION OR NO_DATA_FOUND THEN
-            -- Si el archivo no existe o está vacío, asumimos que no tiene cabecera
-            v_existe_cabecera := FALSE;
-        WHEN MAL_EDITADO THEN 
-            DBMS_OUTPUT.PUT_LINE('Cabecera mal editada');
-            DECLARE
-                v_todas_lineas CLOB := EMPTY_CLOB();
-                v_line VARCHAR2(32767);
-                v_last_non_blank_line VARCHAR2(32767) := NULL; -- Variable para almacenar la última línea no en blanco
-            BEGIN
-                -- Cierra el archivo si está abierto previamente
-                UTL_FILE.FCLOSE(v_archivo);
-            
-                -- Abre el archivo en modo lectura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'R');
-            
-                BEGIN
-                    LOOP
-                        -- Lee una línea del archivo
-                        UTL_FILE.GET_LINE(v_archivo, v_line);
-                        
-                        -- Verifica si la línea no es igual a la cabecera usando una expresión regular
-                        IF NOT REGEXP_LIKE(v_line, v_cabecera) THEN
-                            -- Almacena la línea actual como última no en blanco
-                            v_last_non_blank_line := v_line;
-            
-                            -- Concatenar la línea a 'v_todas_lineas' con un salto de línea
-                            v_todas_lineas := v_todas_lineas || v_line || CHR(10);
-                        END IF;
-                    END LOOP;
-                EXCEPTION
-                    WHEN NO_DATA_FOUND THEN
-                        -- Cierra el archivo de lectura
-                        UTL_FILE.FCLOSE(v_archivo);
-            
-                        -- Elimina el último salto de línea si existe una línea previa
-                        IF v_todas_lineas IS NOT NULL THEN
-                            v_todas_lineas := RTRIM(v_todas_lineas, CHR(10));
-                        END IF;
-                END;
-            
-                -- Reabre el archivo en modo escritura
-                v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'w');
-            
-                -- Escribe la cabecera si no existe
-                UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-                v_existe_cabecera := TRUE;
-                DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-            
-                -- Escribe todas las líneas restantes
-                UTL_FILE.PUT_LINE(v_archivo, v_todas_lineas);
-            
-                -- Cierra el archivo de escritura
-                UTL_FILE.FCLOSE(v_archivo);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    -- Cierra todos los archivos en caso de error
-                    UTL_FILE.FCLOSE_ALL();
-                    RAISE;
-            END;
-
-            --RAISE_APPLICATION_ERROR(-20002  , 'Cebecera mal editada');
-            
-        WHEN OTHERS THEN
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Error si no se puede abrir el archivo
-            DBMS_OUTPUT.PUT_LINE('Error al intentar leer el archivo');
-    END;
-
-    -- Abrir el archivo en modo append para escribir el log
-    BEGIN
-        v_archivo := UTL_FILE.FOPEN(v_directorio, v_nombre_archivo, 'A');
-        DBMS_OUTPUT.PUT_LINE('Archivo abierto en modo append');
-
-        -- Si no existe la cabecera, escribirla
-        IF NOT v_existe_cabecera THEN
-            UTL_FILE.PUT_LINE(v_archivo, v_cabecera);
-            DBMS_OUTPUT.PUT_LINE('Cabecera escrita');
-        END IF;
-
-        -- Escribir el log en el archivo
-        v_linea := TO_CHAR(v_fecha, 'YYYY-MM-DD HH24:MI:SS') || ',' ||
-                   v_usuario || ',' ||
-                   v_tabla || ',' ||
-                   v_evento || ',' ||
-                   v_momento || ',' ||
-                   v_accion;
-        UTL_FILE.PUT_LINE(v_archivo, v_linea);
-        DBMS_OUTPUT.PUT_LINE('Log escrito en el archivo');
-
-        -- Cerrar el archivo
-        UTL_FILE.FCLOSE(v_archivo);
-
-    EXCEPTION
-        WHEN OTHERS THEN
-            -- Cerrar el archivo en caso de error
-            IF UTL_FILE.IS_OPEN(v_archivo) THEN
-                UTL_FILE.FCLOSE(v_archivo);
-            END IF;
-            -- Registrar el error en un archivo de log separado
-            DECLARE
-                v_error_file UTL_FILE.FILE_TYPE;
-                v_error_msg VARCHAR2(1000);
-            BEGIN
-                v_error_file := UTL_FILE.FOPEN(v_directorio, 'error_log.txt', 'A');
-                v_error_msg := TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS') || ' - Error: ' || SQLERRM;
-                UTL_FILE.PUT_LINE(v_error_file, v_error_msg);
-                UTL_FILE.FCLOSE(v_error_file);
-            EXCEPTION
-                WHEN OTHERS THEN
-                    NULL; -- Ignorar errores al escribir el log de errores
-            END;
-            RAISE;
-    END;
+    -- Llamar al procedimiento para escribir en el archivo usando el paquete
+    pkg_logs.log_to_file(v_fecha, v_usuario, v_tabla, v_evento, v_momento, v_accion);
 END;
 /
 
@@ -6113,11 +1921,8 @@ BEGIN
     END IF;
   END IF;
 
-  -- Validar correo electrónico
-  IF :NEW.CORREO_USUARIO IS NULL OR
-     NOT REGEXP_LIKE(:NEW.CORREO_USUARIO, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$') THEN
-    RAISE ex_correo_invalido;
-  END IF;
+  -- Validar correo electrónico llama al paquete
+  pkg_validaciones.validar_correo(:NEW.CORREO);
 
   -- Validar contraseña
   IF LENGTH(:NEW.PASSWORD_USUARIO) <= 8 OR
@@ -6132,27 +1937,11 @@ BEGIN
     END IF;
   END IF;
 
-  -- Validar número de celular
-  IF :NEW.CELULAR_USUARIO IS NOT NULL THEN
-    IF LENGTH(:NEW.CELULAR_USUARIO) <> 10 OR
-       SUBSTR(:NEW.CELULAR_USUARIO, 1, 1) <> '3' OR
-       NOT REGEXP_LIKE(:NEW.CELULAR_USUARIO, '^[0-9]+$') THEN
-      RAISE ex_celular_invalido;
-    ELSE
-      :NEW.CELULAR_USUARIO := TRIM(:NEW.CELULAR_USUARIO);
-    END IF;
-  END IF;
+  -- Validar número de celular llama paquete
+  pkg_validaciones.validar_celular(:NEW.CELULAR);
 
-  -- Validar número de teléfono
-  IF :NEW.TELEFONO_USUARIO IS NOT NULL THEN
-    IF LENGTH(:NEW.TELEFONO_USUARIO) > 0 THEN
-      IF LENGTH(:NEW.TELEFONO_USUARIO) <> 10 OR
-         SUBSTR(:NEW.TELEFONO_USUARIO, 1, 2) <> '60' OR
-         NOT REGEXP_LIKE(:NEW.TELEFONO_USUARIO, '^[0-9]+$') THEN
-        RAISE ex_telefono_invalido;
-      END IF;
-    END IF;
-  END IF;
+  -- Validar número de teléfono llama paquete
+  pkg_validaciones.validar_telefono(:NEW.TELEFONO); 
   
   -- Manejo de excepciones
   EXCEPTION
@@ -6164,16 +1953,10 @@ BEGIN
       RAISE_APPLICATION_ERROR(-20008, 'El primer apellido no puede estar en blanco.');
     WHEN ex_segundo_apellido_invalido THEN
       RAISE_APPLICATION_ERROR(-20009, 'El segundo apellido no es válido.');
-    WHEN ex_correo_invalido THEN
-      RAISE_APPLICATION_ERROR(-20010, 'El correo electrónico no es válido.');
     WHEN ex_contrasena_invalida THEN
       RAISE_APPLICATION_ERROR(-20011, 'La contraseña no cumple con los requisitos de seguridad. 8 caracteres, contener al menos una letra mayúscula y un número.');
     WHEN ex_fecha_nacimiento_invalida THEN
       RAISE_APPLICATION_ERROR(-20012, 'La fecha de nacimiento no cumple con los requisitos.(14 años)');
-    WHEN ex_celular_invalido THEN
-      RAISE_APPLICATION_ERROR(-20013, 'El número de celular no es válido. Inicia con 3');
-    WHEN ex_telefono_invalido THEN
-      RAISE_APPLICATION_ERROR(-20014, 'El número de teléfono no válido. 60 + área + teléfono fijo.');
 END;
 /
 
@@ -6189,43 +1972,12 @@ CREATE OR REPLACE TRIGGER trg_Validacion_Laboratorios
 BEFORE INSERT OR UPDATE
 ON LABORATORIOS
 FOR EACH ROW
-DECLARE
-  ex_correo_invalido EXCEPTION;
-  ex_telefono_invalido EXCEPTION;
-  ex_celular_invalido EXCEPTION;
 BEGIN
     SELECT SEQ_ID_LABORATORIO.NEXTVAL INTO :NEW.ID_LABORATORIO FROM dual;
 
-  IF :NEW.CORREO IS NULL OR
-     NOT REGEXP_LIKE(:NEW.CORREO, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$') THEN
-    RAISE ex_correo_invalido;
-  END IF;
-
-  IF :NEW.TELEFONO IS NOT NULL THEN
-    IF LENGTH(:NEW.TELEFONO) > 0 THEN
-      IF LENGTH(:NEW.TELEFONO) <> 10 OR
-         SUBSTR(:NEW.TELEFONO, 1, 2) <> '60' OR
-         NOT REGEXP_LIKE(:NEW.TELEFONO, '^[0-9]+$') THEN
-        RAISE ex_telefono_invalido;
-      END IF;
-    END IF;
-  END IF;
-  
-  IF :NEW.CELULAR IS NOT NULL THEN
-    IF LENGTH(:NEW.CELULAR) <> 10 OR
-       SUBSTR(:NEW.CELULAR, 1, 1) <> '3' OR
-       NOT REGEXP_LIKE(:NEW.CELULAR, '^[0-9]+$') THEN
-      RAISE ex_celular_invalido;
-    END IF;
-  END IF;
-
-  EXCEPTION
-    WHEN ex_correo_invalido THEN
-      RAISE_APPLICATION_ERROR(-20015, 'El correo electrónico no es válido.');
-    WHEN ex_telefono_invalido THEN
-      RAISE_APPLICATION_ERROR(-20016, 'El número de teléfono no válido.');
-    WHEN ex_celular_invalido THEN
-      RAISE_APPLICATION_ERROR(-20017, 'El número de celular no es válido.');
+  pkg_validaciones.validar_correo(:NEW.CORREO); 
+  pkg_validaciones.validar_telefono(:NEW.TELEFONO); 
+  pkg_validaciones.validar_celular(:NEW.CELULAR);
 END;
 /
 
@@ -6235,43 +1987,11 @@ CREATE OR REPLACE TRIGGER tg_Val_Laboratorios_BEFORE_INSERT
 BEFORE UPDATE
 ON LABORATORIOS
 FOR EACH ROW
-DECLARE
-
-  ex_correo_invalido EXCEPTION;
-  ex_telefono_invalido EXCEPTION;
-  ex_celular_invalido EXCEPTION;
 BEGIN
-  
-  IF :NEW.CORREO IS NULL OR
-     NOT REGEXP_LIKE(:NEW.CORREO, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$') THEN
-    RAISE ex_correo_invalido;
-  END IF;
-
-  IF :NEW.TELEFONO IS NOT NULL THEN
-    IF LENGTH(:NEW.TELEFONO) > 0 THEN
-      IF LENGTH(:NEW.TELEFONO) <> 10 OR
-         SUBSTR(:NEW.TELEFONO, 1, 2) <> '60' OR
-         NOT REGEXP_LIKE(:NEW.TELEFONO, '^[0-9]+$') THEN
-        RAISE ex_telefono_invalido;
-      END IF;
-    END IF;
-  END IF;
-  
-  IF :NEW.CELULAR IS NOT NULL THEN
-    IF LENGTH(:NEW.CELULAR) <> 10 OR
-       SUBSTR(:NEW.CELULAR, 1, 1) <> '3' OR
-       NOT REGEXP_LIKE(:NEW.CELULAR, '^[0-9]+$') THEN
-      RAISE ex_celular_invalido;
-    END IF;
-  END IF;
-
-  EXCEPTION
-    WHEN ex_correo_invalido THEN
-      RAISE_APPLICATION_ERROR(-20015, 'El correo electrónico no es válido.');
-    WHEN ex_telefono_invalido THEN
-      RAISE_APPLICATION_ERROR(-20016, 'El número de teléfono no válido.');
-    WHEN ex_celular_invalido THEN
-      RAISE_APPLICATION_ERROR(-20017, 'El número de celular no es válido.');
+  --llama paquete validación
+  pkg_validaciones.validar_correo(:NEW.CORREO); 
+  pkg_validaciones.validar_telefono(:NEW.TELEFONO); 
+  pkg_validaciones.validar_celular(:NEW.CELULAR);
 END;
 /
 
@@ -6321,49 +2041,14 @@ INCREMENT BY 1;
 CREATE OR REPLACE TRIGGER tg_Val_Transportistas_BEFORE_INSERT
 BEFORE INSERT OR UPDATE ON TRANSPORTISTAS
 FOR EACH ROW
-DECLARE
-
-  ex_correo_invalido EXCEPTION;
-
-  ex_celular_invalido EXCEPTION;
-  
-
-  ex_telefono_invalido EXCEPTION;
 BEGIN
 
   
   SELECT seq_ID_TRANSPORTISTA.NEXTVAL INTO :NEW.ID_TRANSPORTISTA FROM dual;
-
-
-
-  IF :NEW.CORREO IS NULL OR
-     NOT REGEXP_LIKE(:NEW.CORREO, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$') THEN
-    RAISE ex_correo_invalido;
-  END IF;
-
-  IF :NEW.CELULAR IS NULL OR
-     LENGTH(:NEW.CELULAR) <> 10 OR
-     NOT REGEXP_LIKE(:NEW.CELULAR, '^[0-9]+$') THEN
-    RAISE ex_celular_invalido;
-  END IF;
-  
-  IF :NEW.TELEFONO IS NOT NULL THEN
-    IF LENGTH(:NEW.TELEFONO) > 0 THEN
-      IF LENGTH(:NEW.TELEFONO) <> 10 OR
-         NOT REGEXP_LIKE(:NEW.TELEFONO, '^[0-9]+$') THEN
-        RAISE ex_telefono_invalido;
-      END IF;
-    END IF;
-  END IF;
-
-
-  EXCEPTION
-    WHEN ex_correo_invalido THEN
-      RAISE_APPLICATION_ERROR(-20020, 'El correo electrónico no es válido.');
-    WHEN ex_celular_invalido THEN
-      RAISE_APPLICATION_ERROR(-20021, 'El número de celular no es válido.');
-    WHEN ex_telefono_invalido THEN
-      RAISE_APPLICATION_ERROR(-20022, 'El número de teléfono no válido.');
+  --llama paquete de validaciones 
+  pkg_validaciones.validar_correo(:NEW.CORREO); 
+  pkg_validaciones.validar_telefono(:NEW.TELEFONO); 
+  pkg_validaciones.validar_celular(:NEW.CELULAR);
 END;
 /
 
@@ -6372,40 +2057,12 @@ END;
 CREATE OR REPLACE TRIGGER tg_Validacion_Transportistas_BEFORE_UPDATE
 BEFORE UPDATE ON TRANSPORTISTAS
 FOR EACH ROW
-DECLARE
-  ex_correo_invalido EXCEPTION;
-  ex_celular_invalido EXCEPTION;
-  ex_telefono_invalido EXCEPTION;
 BEGIN
 
-  IF :NEW.CORREO IS NULL OR
-     NOT REGEXP_LIKE(:NEW.CORREO, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$') THEN
-    RAISE ex_correo_invalido;
-  END IF;
-
-  IF :NEW.CELULAR IS NULL OR
-     LENGTH(:NEW.CELULAR) <> 10 OR
-     NOT REGEXP_LIKE(:NEW.CELULAR, '^[0-9]+$') THEN
-    RAISE ex_celular_invalido;
-  END IF;
-  
-  IF :NEW.TELEFONO IS NOT NULL THEN
-    IF LENGTH(:NEW.TELEFONO) > 0 THEN
-      IF LENGTH(:NEW.TELEFONO) <> 10 OR
-         NOT REGEXP_LIKE(:NEW.TELEFONO, '^[0-9]+$') THEN
-        RAISE ex_telefono_invalido;
-      END IF;
-    END IF;
-  END IF;
-
-
-  EXCEPTION
-    WHEN ex_correo_invalido THEN
-      RAISE_APPLICATION_ERROR(-20020, 'El correo electrónico no es válido.');
-    WHEN ex_celular_invalido THEN
-      RAISE_APPLICATION_ERROR(-20021, 'El número de celular no es válido.');
-    WHEN ex_telefono_invalido THEN
-      RAISE_APPLICATION_ERROR(-20022, 'El número de teléfono no válido.');
+  --llama paquete de validaciones
+  pkg_validaciones.validar_correo(:NEW.CORREO); 
+  pkg_validaciones.validar_telefono(:NEW.TELEFONO); 
+  pkg_validaciones.validar_celular(:NEW.CELULAR);
 END;
 /
 
@@ -6430,7 +2087,7 @@ BEGIN
   FROM LABORATORIOS
   WHERE ID_LABORATORIO = :NEW.ID_LABORATORIOS;
 
-  IF v_estado_laboratorio != 1 THEN
+  IF v_estado_laboratorio != 16 THEN
     RAISE ex_laboratorio_inactivo;
   END IF;
   :NEW.CANTIDAD_ACTUAL :=0;
