@@ -272,3 +272,72 @@ CREATE OR REPLACE PACKAGE BODY pkg_manejo_logs AS
 
 END pkg_manejo_logs;
 /
+
+prompt +-------------------------------------------------------------+
+prompt |            Package  PKG_UTILIDADES   
+prompt +-------------------------------------------------------------+
+
+prompt --> Cabecera del paquete  pkg_utilidades
+
+CREATE OR REPLACE PACKAGE pkg_utilidades AS
+    FUNCTION fn_validar_documento(doc INTEGER) RETURN BOOLEAN;
+    FUNCTION fn_validar_nombre(nombre VARCHAR2) RETURN BOOLEAN;
+    FUNCTION fn_validar_apellido(apellido VARCHAR2) RETURN BOOLEAN;
+    FUNCTION fn_validar_correo(correo VARCHAR2) RETURN BOOLEAN;
+    FUNCTION fn_validar_contrasena(password VARCHAR2) RETURN BOOLEAN;
+    FUNCTION fn_validar_fecha_nacimiento(fecha DATE) RETURN BOOLEAN;
+    FUNCTION fn_validar_celular(celular VARCHAR2) RETURN BOOLEAN;  
+    FUNCTION fn_validar_telefono(telefono INTEGER) RETURN BOOLEAN;
+END pkg_utilidades;
+/
+
+prompt --> Cuerpo del paquete  pkg_utilidades
+
+CREATE OR REPLACE PACKAGE BODY pkg_utilidades AS
+
+    FUNCTION fn_validar_documento(doc INTEGER) RETURN BOOLEAN IS
+        BEGIN
+            RETURN LENGTH(doc) BETWEEN 7 AND 10 AND REGEXP_LIKE(doc, '^[0-9]+$');
+        END fn_validar_documento;
+
+    FUNCTION fn_validar_nombre(nombre VARCHAR2) RETURN BOOLEAN IS
+        BEGIN
+            RETURN nombre IS NOT NULL;
+        END fn_validar_nombre;
+
+    FUNCTION fn_validar_apellido(apellido VARCHAR2) RETURN BOOLEAN IS
+        BEGIN
+            IF apellido IS NULL THEN
+                RETURN TRUE;
+            ELSE
+                RETURN LENGTH(apellido) <= 40 AND REGEXP_LIKE(apellido, '^[a-zA-Z ]+$');
+            END IF;
+        END fn_validar_apellido;
+
+    FUNCTION fn_validar_correo(correo VARCHAR2) RETURN BOOLEAN IS
+        BEGIN
+            RETURN correo IS NOT NULL AND REGEXP_LIKE(correo, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$');
+        END fn_validar_correo;
+
+    FUNCTION fn_validar_contrasena(password VARCHAR2) RETURN BOOLEAN IS
+        BEGIN
+            RETURN LENGTH(password) > 8 AND REGEXP_LIKE(password, '.*[A-Z]+.*[0-9]+.*');
+        END fn_validar_contrasena;
+
+    FUNCTION fn_validar_fecha_nacimiento(fecha DATE) RETURN BOOLEAN IS
+        BEGIN
+            RETURN fecha IS NOT NULL AND fecha BETWEEN (SYSDATE - 160*365) AND (SYSDATE - 14*365);
+        END fn_validar_fecha_nacimiento;
+
+    FUNCTION fn_validar_celular(celular VARCHAR2) RETURN BOOLEAN IS  
+        BEGIN
+            RETURN LENGTH(celular) = 10 AND REGEXP_LIKE(celular, '^[0-9]{10}$') AND SUBSTR(celular, 1, 1) = '3';
+        END fn_validar_celular;
+
+    FUNCTION fn_validar_telefono(telefono INTEGER) RETURN BOOLEAN IS
+        BEGIN
+            RETURN LENGTH(telefono) = 10 AND SUBSTR(telefono, 1, 2) = '60' AND REGEXP_LIKE(telefono, '^[0-9]+$');
+        END fn_validar_telefono;
+
+END pkg_utilidades;
+/
