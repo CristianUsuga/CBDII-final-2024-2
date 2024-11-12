@@ -2549,3 +2549,488 @@ END;
 /
 
 
+prompt +-------------------------------------------------------------+
+prompt |            Triggers de la  Tabla  TRANSPORTISTAS
+prompt +-------------------------------------------------------------+
+
+DROP SEQUENCE seq_ID_TRANSPORTISTA;
+CREATE SEQUENCE seq_ID_TRANSPORTISTA
+START WITH 1
+INCREMENT BY 1;
+
+
+CREATE OR REPLACE TRIGGER tg_Val_Transportistas_BEFORE
+BEFORE INSERT OR UPDATE ON TRANSPORTISTAS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10);
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'TRANSPORTISTAS';
+
+    ex_correo_invalido EXCEPTION;
+    ex_celular_invalido EXCEPTION;
+    ex_telefono_invalido EXCEPTION;
+BEGIN
+    -- Generar ID_TRANSPORTISTA solo en inserciones
+    IF INSERTING THEN
+        SELECT seq_ID_TRANSPORTISTA.NEXTVAL INTO :NEW.ID_TRANSPORTISTA FROM dual;
+        v_evento := 'INSERT';
+        v_accion :=
+        ' || NEW' ||
+                ' | 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||                                 
+                ' | 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||                    
+                ' | 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||                    
+                ' | 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil ||    
+                ' | 5.datos_transportistas.telefono.fijo: ' || :NEW.datos_transportistas.telefono.fijo ||      
+                ' | 6.TIPO: ' || :NEW.TIPO;                                    
+
+
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , NEW 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||   
+                ' , NEW 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||
+                ' , NEW 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||
+                ' , NEW 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil || 
+                ' , NEW 5.datos_transportistas.telefono.fijo: ' || :NEW.datos_transportistas.telefono.fijo ||
+                ' , NEW  6.TIPO: ' || :NEW.TIPO;
+    ELSE
+        v_evento := 'UPDATE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||                                 
+        ' | 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||                    
+        ' | 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||                    
+        ' | 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||    
+        ' | NEW 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||                                 
+        ' | 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||                    
+        ' | 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||                    
+        ' | 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil  ;
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , OLD 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||   
+                ' , OLD 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||
+                ' , OLD 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||
+                ' , OLD 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||
+                ' , OLD 5.datos_transportistas.telefono.fijo: ' || :OLD.datos_transportistas.telefono.fijo ||
+                ' , OLD  6.TIPO: ' || :OLD.TIPO ||
+                ' , NEW 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||   
+                ' , NEW 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||
+                ' , NEW 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||
+                ' , NEW 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil ||
+                ' , NEW 5.datos_transportistas.telefono.fijo: ' || :NEW.datos_transportistas.telefono.fijo ||
+                ' , NEW  6.TIPO: ' || :NEW.TIPO;
+
+    END IF;
+
+    -- Validación del correo
+    IF NOT pkg_utilidades.fn_validar_correo(:NEW.datos_transportistas.correo) THEN
+        RAISE ex_correo_invalido;
+    END IF;
+
+    -- Validación del número móvil
+    IF :NEW.datos_transportistas.telefono.movil IS NOT NULL AND 
+       NOT pkg_utilidades.fn_validar_celular(:NEW.datos_transportistas.telefono.movil) THEN
+        RAISE ex_celular_invalido;
+    END IF;
+
+    -- Validación del teléfono fijo
+    IF :NEW.datos_transportistas.telefono.fijo IS NOT NULL AND 
+       NOT pkg_utilidades.fn_validar_telefono(:NEW.datos_transportistas.telefono.fijo) THEN
+        RAISE ex_telefono_invalido;
+    END IF;
+
+
+    -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+EXCEPTION
+    WHEN ex_correo_invalido THEN
+        RAISE_APPLICATION_ERROR(-20020, 'El correo electrónico no es válido.');
+    WHEN ex_celular_invalido THEN
+        RAISE_APPLICATION_ERROR(-20021, 'El número de celular no es válido.');
+    WHEN ex_telefono_invalido THEN
+        RAISE_APPLICATION_ERROR(-20022, 'El número de teléfono no válido.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+
+--> DELETE BEFORE
+
+CREATE OR REPLACE TRIGGER tg_Transportistas_DEL_BEFORE
+BEFORE DELETE ON TRANSPORTISTAS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10);
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'TRANSPORTISTAS';
+
+    ex_correo_invalido EXCEPTION;
+    ex_celular_invalido EXCEPTION;
+    ex_telefono_invalido EXCEPTION;
+BEGIN
+    IF DELETING THEN
+        v_evento := 'DELETE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||                                 
+        ' | 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||                    
+        ' | 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||                    
+        ' | 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||    
+        ' | 5.datos_transportistas.telefono.fijo: ' || :OLD.datos_transportistas.telefono.fijo ||      
+        ' | 6.TIPO: ' || :OLD.TIPO ;        
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+        ' , OLD 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||   
+        ' , OLD 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||
+        ' , OLD 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||
+        ' , OLD 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||
+        ' , OLD 5.datos_transportistas.telefono.fijo: ' || :OLD.datos_transportistas.telefono.fijo ||
+        ' , OLD  6.TIPO: ' || :OLD.TIPO  ;
+    END IF;
+        -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');
+            DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END tg_Transportistas_DEL_BEFORE;
+
+---> TRANPORTISTA AFTER
+CREATE OR REPLACE TRIGGER tg_Transportistas_AFTER
+AFTER INSERT OR UPDATE OR DELETE ON TRANSPORTISTAS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10);
+    v_momento VARCHAR2(10) := 'AFTER';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'TRANSPORTISTAS';
+BEGIN
+    IF INSERTING THEN
+        v_evento := 'INSERT';
+        v_accion :=
+        ' || NEW' ||
+                ' | 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||                                 
+                ' | 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||                    
+                ' | 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||                    
+                ' | 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil ||    
+                ' | 5.datos_transportistas.telefono.fijo: ' || :NEW.datos_transportistas.telefono.fijo ||      
+                ' | 6.TIPO: ' || :NEW.TIPO;                                    
+
+
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , NEW 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||   
+                ' , NEW 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||
+                ' , NEW 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||
+                ' , NEW 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil || 
+                ' , NEW 5.datos_transportistas.telefono.fijo: ' || :NEW.datos_transportistas.telefono.fijo ||
+                ' , NEW  6.TIPO: ' || :NEW.TIPO;
+
+    ELSIF UPDATING THEN
+        v_evento := 'UPDATE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||                                 
+        ' | 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||                    
+        ' | 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||                    
+        ' | 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||    
+        ' | NEW 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||                                 
+        ' | 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||                    
+        ' | 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||                    
+        ' | 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil  ;
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , OLD 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||   
+                ' , OLD 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||
+                ' , OLD 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||
+                ' , OLD 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||
+                ' , OLD 5.datos_transportistas.telefono.fijo: ' || :OLD.datos_transportistas.telefono.fijo ||
+                ' , OLD  6.TIPO: ' || :OLD.TIPO ||
+                ' , NEW 1. ID_TRANSPORTISTA: ' || :NEW.ID_TRANSPORTISTA ||   
+                ' , NEW 2.datos_transportistas.nombre: ' || :NEW.datos_transportistas.nombre ||
+                ' , NEW 3.datos_transportistas.correo: ' || :NEW.datos_transportistas.correo ||
+                ' , NEW 4.datos_transportistas.telefono.movil: ' || :NEW.datos_transportistas.telefono.movil ||
+                ' , NEW 5.datos_transportistas.telefono.fijo: ' || :NEW.datos_transportistas.telefono.fijo ||
+                ' , NEW  6.TIPO: ' || :NEW.TIPO;
+
+    ELSIF DELETING THEN
+        v_evento := 'DELETE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||                                 
+        ' | 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||                    
+        ' | 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||                    
+        ' | 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||    
+        ' | 5.datos_transportistas.telefono.fijo: ' || :OLD.datos_transportistas.telefono.fijo ||      
+        ' | 6.TIPO: ' || :OLD.TIPO ;        
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+        ' , OLD 1. ID_TRANSPORTISTA: ' || :OLD.ID_TRANSPORTISTA ||   
+        ' , OLD 2.datos_transportistas.nombre: ' || :OLD.datos_transportistas.nombre ||
+        ' , OLD 3.datos_transportistas.correo: ' || :OLD.datos_transportistas.correo ||
+        ' , OLD 4.datos_transportistas.telefono.movil: ' || :OLD.datos_transportistas.telefono.movil ||
+        ' , OLD 5.datos_transportistas.telefono.fijo: ' || :OLD.datos_transportistas.telefono.fijo ||
+        ' , OLD  6.TIPO: ' || :OLD.TIPO  ;
+    END IF;
+
+            -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');
+            DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+
+END tg_Transportistas_AFTER; 
+
+prompt +-------------------------------------------------------------+
+prompt |            Triggers de la  Tabla  PERFILES
+prompt +-------------------------------------------------------------+
+
+--PERFILES BEFORE
+CREATE OR REPLACE  TRIGGER tg_PERFILES_before
+BEFORE INSERT OR UPDATE OR DELETE
+ON PERFILES
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10);
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50):= 'PERFILES';
+    
+BEGIN
+    -- Determinar el tipo de evento
+    IF INSERTING THEN
+        v_evento := 'INSERT';
+        v_accion :=
+        ' || NEW' ||
+        ' | 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :NEW.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , NEW 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||  
+                ' , NEW 2. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||   
+                ' , NEW 3.INSERTAR: ' || :NEW.INSERTAR ||  
+                ' , NEW 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||
+                ' , NEW 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+    ELSIF UPDATING THEN
+        v_evento := 'UPDATE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :OLD.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :OLD.ELIMINAR ||
+        ' || NEW' ||
+        ' | 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :NEW.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , OLD 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||  
+                ' , OLD 2. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||   
+                ' , OLD 3.INSERTAR: ' || :OLD.INSERTAR ||  
+                ' , OLD 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||
+                ' , OLD 5.ELIMINAR: ' || :OLD.ELIMINAR ||
+                ' , NEW 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||  
+                ' , NEW 2. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||   
+                ' , NEW 3.INSERTAR: ' || :NEW.INSERTAR ||  
+                ' , NEW 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||
+                ' , NEW 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+    ELSIF DELETING THEN
+        v_evento := 'DELETE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :OLD.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :OLD.ELIMINAR ;
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , OLD 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||  
+                ' , OLD 2. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||   
+                ' , OLD 3.INSERTAR: ' || :OLD.INSERTAR ||  
+                ' , OLD 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||
+                ' , OLD 5.ELIMINAR: ' || :OLD.ELIMINAR ;
+    END IF;
+
+    -- Llamar al procedimiento para insertar el log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  =>  v_accion_aud
+    );
+
+    -- Llamar al procedimiento para insertar el log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+---> PERFILES AFTER
+
+CREATE OR REPLACE  TRIGGER tg_PERFILES_AFTER
+AFTER INSERT OR UPDATE OR DELETE
+ON PERFILES
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10);
+    v_momento VARCHAR2(10) := 'AFTER';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50):= 'PERFILES';
+    
+BEGIN
+    -- Determinar el tipo de evento
+    IF INSERTING THEN
+        v_evento := 'INSERT';
+        v_accion :=
+        ' || NEW' ||
+        ' | 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :NEW.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , NEW 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||  
+                ' , NEW 2. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||   
+                ' , NEW 3.INSERTAR: ' || :NEW.INSERTAR ||  
+                ' , NEW 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||
+                ' , NEW 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+    ELSIF UPDATING THEN
+        v_evento := 'UPDATE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :OLD.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :OLD.ELIMINAR ||
+        ' || NEW' ||
+        ' | 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :NEW.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , OLD 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||  
+                ' , OLD 2. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||   
+                ' , OLD 3.INSERTAR: ' || :OLD.INSERTAR ||  
+                ' , OLD 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||
+                ' , OLD 5.ELIMINAR: ' || :OLD.ELIMINAR ||
+                ' , NEW 1. ID_PERFIL: ' || :NEW.ID_PERFIL ||  
+                ' , NEW 2. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO ||   
+                ' , NEW 3.INSERTAR: ' || :NEW.INSERTAR ||  
+                ' , NEW 4.ACTUALIZAR: ' || :NEW.ACTUALIZAR ||
+                ' , NEW 5.ELIMINAR: ' || :NEW.ELIMINAR ;
+    ELSIF DELETING THEN
+        v_evento := 'DELETE';
+        v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||                                 
+        ' | 2.ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||                    
+        ' | 3.INSERTAR: ' || :OLD.INSERTAR ||                    
+        ' | 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||    
+        ' | 5.ELIMINAR: ' || :OLD.ELIMINAR ;
+        v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+                ' , OLD 1. ID_PERFIL: ' || :OLD.ID_PERFIL ||  
+                ' , OLD 2. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO ||   
+                ' , OLD 3.INSERTAR: ' || :OLD.INSERTAR ||  
+                ' , OLD 4.ACTUALIZAR: ' || :OLD.ACTUALIZAR ||
+                ' , OLD 5.ELIMINAR: ' || :OLD.ELIMINAR ;
+    END IF;
+
+    -- Llamar al procedimiento para insertar el log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  =>  v_accion_aud
+    );
+
+    -- Llamar al procedimiento para insertar el log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
