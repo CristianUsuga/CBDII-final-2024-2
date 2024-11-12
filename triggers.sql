@@ -3034,3 +3034,161 @@ BEGIN
         DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
 END;
 /
+
+prompt +-------------------------------------------------------------+
+prompt |            Triggers de la  Tabla   FORMULARIOS         
+prompt +-------------------------------------------------------------+
+
+DROP SEQUENCE seq_id_formulario;
+CREATE SEQUENCE seq_id_formulario START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+CREATE OR REPLACE TRIGGER tg_Val_Formularios_insert_before
+BEFORE INSERT
+ON Formularios
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'INSERT';
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud VARCHAR2(500);
+    v_tabla VARCHAR2(50) := 'FORMULARIOS';
+
+    -- Excepciones
+    ex_nodo_principal_duplicado EXCEPTION;
+    ex_nodo_principal_sin_padre EXCEPTION;
+    ex_padre_no_es_modulo EXCEPTION;
+BEGIN
+    SELECT seq_id_formulario.NEXTVAL INTO :new.ID_FORMULARIO FROM dual;
+
+    -- Asegurar que el nodo principal sea también un módulo
+    IF :new.NODO_PRINCIPAL = 1 THEN
+        :new.MODULO := 1;
+    END IF;
+
+    -- Validar nodo principal único
+    IF pkg_formularios.fn_existe_nodo_principal AND :new.NODO_PRINCIPAL = 1 THEN
+        RAISE ex_nodo_principal_duplicado;
+    END IF;
+
+    -- Validar ID padre para nodo principal
+    IF :new.NODO_PRINCIPAL = 1 THEN
+        IF :new.ID_PADRE IS NOT NULL THEN
+            RAISE ex_nodo_principal_sin_padre;
+        END IF;
+    ELSE
+        -- Validar ID padre no nulo
+        IF :new.ID_PADRE IS NULL THEN
+            RAISE ex_nodo_principal_sin_padre;
+        ELSE
+            -- Validar que el padre sea un módulo
+            IF NOT pkg_formularios.fn_padre_es_modulo(:new.ID_PADRE) THEN
+                RAISE ex_padre_no_es_modulo;
+            END IF;
+        END IF;
+    END IF;
+
+    -- Validación de orden: si no se ingresa, asignar el siguiente número de orden
+    IF :new.ORDEN IS NULL THEN
+        :new.ORDEN := pkg_formularios.fn_obtener_siguiente_orden(:new.ID_PADRE);
+    END IF;
+
+    -- Crear mensajes de log
+    v_accion := '|| NEW | 1. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO || 
+                ' | 2. NOMBRE_FORMULARIO: ' || :NEW.NOMBRE_FORMULARIO ||       
+                ' | 3. NODO_PRINCIPAL: ' || :NEW.NODO_PRINCIPAL || 
+                ' | 4. MODULO: ' || :NEW.MODULO || 
+                ' | 5. ID_PADRE: ' || :NEW.ID_PADRE || 
+                ' | 6. ORDEN: ' || :NEW.ORDEN || 
+                ' | 7. URL: ' || :NEW.URL;
+
+    v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+        ' , NEW 1.  ID_FORMULARIO: ' || :NEW.ID_FORMULARIO || 
+        ' , NEW 2.NOMBRE_FORMULARIO: ' || :NEW.NOMBRE_FORMULARIO || 
+        ' , NEW 3.NODO_PRINCIPAL: ' || :NEW.NODO_PRINCIPAL || 
+        ' , NEW 4. MODULO: ' || :NEW.MODULO || 
+        ' , NEW 5.ID_PADRE: ' || :NEW.ID_PADRE || 
+        ' , NEW 6. ORDEN: ' || :NEW.ORDEN || 
+        ' , NEW 7. URL: ' || :NEW.URL;
+
+    -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+EXCEPTION
+    WHEN ex_nodo_principal_duplicado THEN
+        :NEW.NODO_PRINCIPAL := 0;
+        DBMS_OUTPUT.PUT_LINE('Ya existe un nodo principal en la tabla Formularios.');
+    WHEN ex_nodo_principal_sin_padre THEN
+        :NEW.ID_PADRE := NULL;  
+        DBMS_OUTPUT.PUT_LINE('El nodo principal no puede tener un padre si no es el nodo principal.');
+    WHEN ex_padre_no_es_modulo THEN
+        RAISE_APPLICATION_ERROR(-20003, 'El ID padre debe ser un módulo (Modulo = 1)');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+
+CREATE OR REPLACE TRIGGER tg_Val_Formularios_before_update
+BEFORE UPDATE
+ON Formularios
+FOR EACH ROW
+BEGIN
+    -- Crear el mensaje de log con valores OLD y NEW
+    pkg_formularios.pr_preparar_datos_log(
+        p_accion => '|| OLD | 1. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO || 
+                    ' | 2. NOMBRE_FORMULARIO: ' || :OLD.NOMBRE_FORMULARIO ||       
+                    ' | 3. NODO_PRINCIPAL: ' || :OLD.NODO_PRINCIPAL || 
+                    ' | 4. MODULO: ' || :OLD.MODULO || 
+                    ' | 5. ID_PADRE: ' || :OLD.ID_PADRE || 
+                    ' | 6. ORDEN: ' || :OLD.ORDEN || 
+                    ' | 7. URL: ' || :OLD.URL || 
+                    ' || NEW | 1. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO || 
+                    ' | 2. NOMBRE_FORMULARIO: ' || :NEW.NOMBRE_FORMULARIO ||       
+                    ' | 3. NODO_PRINCIPAL: ' || :NEW.NODO_PRINCIPAL || 
+                    ' | 4. MODULO: ' || :NEW.MODULO || 
+                    ' | 5. ID_PADRE: ' || :NEW.ID_PADRE || 
+                    ' | 6. ORDEN: ' || :NEW.ORDEN || 
+                    ' | 7. URL: ' || :NEW.URL,
+                    
+        p_accion_aud => 'TABLA: FORMULARIOS => ' || 
+                    ' , OLD 1. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO || 
+                    ' , OLD 2. NOMBRE_FORMULARIO: ' || :OLD.NOMBRE_FORMULARIO ||       
+                    ' , OLD 3. NODO_PRINCIPAL: ' || :OLD.NODO_PRINCIPAL || 
+                    ' , OLD 4. MODULO: ' || :OLD.MODULO || 
+                    ' , OLD 5. ID_PADRE: ' || :OLD.ID_PADRE || 
+                    ' , OLD 6. ORDEN: ' || :OLD.ORDEN || 
+                    ' , OLD 7. URL: ' || :OLD.URL || 
+                    ' , NEW 1. ID_FORMULARIO: ' || :NEW.ID_FORMULARIO || 
+                    ' , NEW 2. NOMBRE_FORMULARIO: ' || :NEW.NOMBRE_FORMULARIO ||       
+                    ' , NEW 3. NODO_PRINCIPAL: ' || :NEW.NODO_PRINCIPAL || 
+                    ' , NEW 4. MODULO: ' || :NEW.MODULO || 
+                    ' , NEW 5. ID_PADRE: ' || :NEW.ID_PADRE || 
+                    ' , NEW 6. ORDEN: ' || :NEW.ORDEN || 
+                    ' , NEW 7. URL: ' || :NEW.URL
+    );
+END;
+/
+
+CREATE OR REPLACE TRIGGER tg_Val_Formularios_after_update
+AFTER UPDATE
+ON Formularios
+BEGIN
+    -- Registrar los logs usando los datos preparados en el paquete
+    pkg_formularios.pr_registrar_log_update;
+    
+END;
+/

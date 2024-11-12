@@ -80,6 +80,11 @@ UPDATE USUARIOS el set el.datos_usuario.nombre = 'Juan IV', el.datos_usuario.tel
 
 UPDATE laboratorios el set el.datos_laboratorios.nombre = 'Juan IV Labora' where id_laboratorio = 1;
 
+INSERT INTO TRANSPORTISTAS(datos_transportistas,TIPO) VALUES (contacto('Test transportista',telefonos(6000000000, 3008020156),'test_transpor@1example.com'),3);
+
+UPDATE TRANSPORTISTAS el set el.datos_transportistas.nombre = 'Labo IV Labid_transportista' where id_transportista =  2 ;
+
+
 prompt +-------------------------------------------------------------+
 prompt |            INSERTAR  OBJECTOS USUARIO    
 prompt +-------------------------------------------------------------+
@@ -116,3 +121,6 @@ INSERT INTO USUARIOS
     );
 
 INSERT INTO laboratorios(datos_laboratorios,estado_laboratorio) VALUES (contacto('Natu vip',telefonos(6000000000, 3008020156),'1laboratorio2@1example.com'),158);
+
+INSERT INTO TRANSPORTISTAS(datos_transportistas,TIPO) VALUES (contacto('Test transportista',telefonos(6000000000, 3008020156),'test_transpor@1example.com'),3);
+

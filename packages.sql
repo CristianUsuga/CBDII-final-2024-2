@@ -341,3 +341,94 @@ CREATE OR REPLACE PACKAGE BODY pkg_utilidades AS
 
 END pkg_utilidades;
 /
+
+prompt +-------------------------------------------------------------+
+prompt |            Package  pkg_formularios   
+prompt +-------------------------------------------------------------+
+
+prompt --> Cabecera del paquete  pkg_formularios
+CREATE OR REPLACE PACKAGE pkg_formularios AS
+    -- Funciones y procedimientos
+    FUNCTION fn_existe_nodo_principal RETURN BOOLEAN;
+    FUNCTION fn_padre_es_modulo(p_id_padre INTEGER) RETURN BOOLEAN;
+    FUNCTION fn_obtener_siguiente_orden(p_id_padre INTEGER) RETURN INTEGER;
+
+    -- Procedimiento para almacenar datos de log antes de la actualización
+    PROCEDURE pr_preparar_datos_log(p_accion VARCHAR2, p_accion_aud VARCHAR2);
+    -- Procedimiento para registrar los logs después de la actualización
+    PROCEDURE pr_registrar_log_update;
+END pkg_formularios;
+/
+
+prompt --> Cuerpo del paquete  pkg_formularios
+
+CREATE OR REPLACE PACKAGE BODY pkg_formularios AS
+    v_accion VARCHAR2(1000);
+    v_accion_aud VARCHAR2(1000);
+
+    -- Verifica si existe un nodo principal
+    FUNCTION fn_existe_nodo_principal RETURN BOOLEAN IS
+        v_cantidad NUMBER(1);
+    BEGIN
+        SELECT COUNT(*)
+        INTO v_cantidad
+        FROM Formularios
+        WHERE Nodo_Principal = 1;
+
+        RETURN v_cantidad > 0;
+    END fn_existe_nodo_principal;
+
+    -- Verifica si el ID padre es un módulo
+    FUNCTION fn_padre_es_modulo(p_id_padre INTEGER) RETURN BOOLEAN IS
+        v_modulo NUMBER(1);
+    BEGIN
+        SELECT MODULO
+        INTO v_modulo
+        FROM Formularios
+        WHERE ID_FORMULARIO = p_id_padre;
+
+        RETURN v_modulo = 1;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN FALSE; -- Si el ID padre no existe, retorna falso
+    END fn_padre_es_modulo;
+
+    -- Obtiene el siguiente valor de orden para un nodo hijo
+    FUNCTION fn_obtener_siguiente_orden(p_id_padre INTEGER) RETURN INTEGER IS
+        v_max_orden INTEGER;
+    BEGIN
+        SELECT COALESCE(MAX(ORDEN), 0)
+        INTO v_max_orden
+        FROM Formularios
+        WHERE ID_PADRE = p_id_padre;
+
+        RETURN v_max_orden + 2;
+    END fn_obtener_siguiente_orden;
+
+    -- Procedimiento para almacenar los datos de log antes de la actualización
+    PROCEDURE pr_preparar_datos_log(p_accion VARCHAR2, p_accion_aud VARCHAR2) IS
+    BEGIN
+        v_accion := p_accion;
+        v_accion_aud := p_accion_aud;
+    END pr_preparar_datos_log;
+
+    -- Procedimiento para registrar los logs después de la actualización
+    PROCEDURE pr_registrar_log_update IS
+    BEGIN
+        -- Registrar log en la tabla
+        pkg_manejo_logs.pr_insertar_log_tabla(
+            p_evento  => 'UPDATE',
+            p_momento => 'AFTER',
+            p_accion  => v_accion_aud
+        );
+
+        -- Registrar log en el archivo CSV
+        pkg_manejo_logs.pr_insertar_log_archivo(
+            p_evento  => 'UPDATE',
+            p_momento => 'AFTER',
+            p_accion  => v_accion,
+            p_tabla   => 'FORMULARIOS'
+        );
+    END pr_registrar_log_update;
+END pkg_formularios;
+/
