@@ -3180,6 +3180,10 @@ BEGIN
                     ' , NEW 6. ORDEN: ' || :NEW.ORDEN || 
                     ' , NEW 7. URL: ' || :NEW.URL
     );
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
 END;
 /
 
@@ -3192,3 +3196,64 @@ BEGIN
     
 END;
 /
+
+create or replace TRIGGER trg_Validacion_After_Delete_Formularios
+AFTER DELETE
+ON Formularios
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'DELETE';
+    v_momento VARCHAR2(10) := 'AFTER';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'FORMULARIOS';
+    v_tipo_formulario VARCHAR2(50);
+BEGIN
+    IF :old.NODO_PRINCIPAL = 1 THEN
+        v_tipo_formulario := 'Nodo Principal';
+    ELSIF :old.MODULO = 1 THEN
+        v_tipo_formulario := 'Módulo';
+    ELSE
+        v_tipo_formulario := 'Archivo';
+    END IF;
+    v_accion :=
+        '||OLD | 1. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO || 
+            ' | 2. NOMBRE_FORMULARIO: ' || :OLD.NOMBRE_FORMULARIO ||       
+            ' | 3. NODO_PRINCIPAL: ' || :OLD.NODO_PRINCIPAL || 
+            ' | 4. MODULO: ' || :OLD.MODULO || 
+            ' | 5. ID_PADRE: ' || :OLD.ID_PADRE || 
+            ' | 6. ORDEN: ' || :OLD.ORDEN || 
+            ' | 7. URL: ' || :OLD.URL ;
+
+    v_accion_aud := 'TABLA: ' || v_tabla || ' => ' || 
+    ' , OLD 1. ID_FORMULARIO: ' || :OLD.ID_FORMULARIO || 
+                ' , OLD 2. NOMBRE_FORMULARIO: ' || :OLD.NOMBRE_FORMULARIO ||       
+                ' , OLD 3. NODO_PRINCIPAL: ' || :OLD.NODO_PRINCIPAL || 
+                ' , OLD 4. MODULO: ' || :OLD.MODULO || 
+                ' , OLD 5. ID_PADRE: ' || :OLD.ID_PADRE || 
+                ' , OLD 6. ORDEN: ' || :OLD.ORDEN || 
+                ' , OLD 7. URL: ' || :OLD.URL ;
+    -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+    DBMS_OUTPUT.PUT_LINE('Se ha eliminado un ' || v_tipo_formulario || ': ' || :old.NOMBRE_FORMULARIO);
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+
+
+
