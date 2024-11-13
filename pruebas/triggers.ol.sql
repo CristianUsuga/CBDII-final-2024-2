@@ -6469,33 +6469,31 @@ CREATE OR REPLACE TRIGGER tg_val_productos_before_update
 BEFORE UPDATE ON PRODUCTOS
 FOR EACH ROW
 DECLARE
-  ex_laboratorio_inactivo EXCEPTION;
-
-  v_estado_laboratorio INTEGER;
-
-  v_cantidad_actual INTEGER;
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
 BEGIN
-  SELECT ESTADO_LABORATORIO INTO v_estado_laboratorio
-  FROM LABORATORIOS
-  WHERE ID_LABORATORIO = :NEW.ID_LABORATORIOS;
+    SELECT ESTADO_LABORATORIO INTO v_estado_laboratorio
+    FROM LABORATORIOS
+    WHERE ID_LABORATORIO = :NEW.ID_LABORATORIOS;
 
-  IF v_estado_laboratorio != 1 THEN
-    RAISE ex_laboratorio_inactivo;
-  END IF;
+    IF v_estado_laboratorio != 1 THEN
+        RAISE ex_laboratorio_inactivo;
+    END IF;
 
-  :NEW.FECHA_ACTUALIZACION := SYSDATE;
+    :NEW.FECHA_ACTUALIZACION := SYSDATE;
 
-  IF :NEW.CANTIDAD_ACTUAL > :NEW.STOCK_MAXIMO THEN
-    DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Exceso de stock máximo para el producto ' || :NEW.NOMBRE_PRODUCTO);
-  END IF;
+    IF :NEW.CANTIDAD_ACTUAL > :NEW.STOCK_MAXIMO THEN
+        DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Exceso de stock máximo para el producto ' || :NEW.NOMBRE_PRODUCTO);
+    END IF;
 
-  IF :NEW.CANTIDAD_ACTUAL < :NEW.STOCK_MINIMO THEN
-    DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Poca cantidad de productos para el producto ' || :NEW.NOMBRE_PRODUCTO);
-  END IF;
+    IF :NEW.CANTIDAD_ACTUAL < :NEW.STOCK_MINIMO THEN
+        DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Poca cantidad de productos para el producto ' || :NEW.NOMBRE_PRODUCTO);
+    END IF;
 
-  EXCEPTION
+    EXCEPTION
     WHEN ex_laboratorio_inactivo THEN
-      RAISE_APPLICATION_ERROR(-20023, 'No se puede agregar el producto porque el laboratorio asociado está desactivado.');
+    RAISE_APPLICATION_ERROR(-20023, 'No se puede agregar el producto porque el laboratorio asociado está desactivado.');
 END;
 /
 

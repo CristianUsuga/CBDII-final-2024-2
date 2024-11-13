@@ -3508,8 +3508,6 @@ BEGIN
             );
 
     EXCEPTION
-    WHEN ex_laboratorio_inactivo THEN
-        DBMS_OUTPUT.PUT_LINE('No se puede agregar el producto porque el laboratorio asociado está desactivado.');
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
         DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);

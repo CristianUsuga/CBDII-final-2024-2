@@ -432,3 +432,85 @@ CREATE OR REPLACE PACKAGE BODY pkg_formularios AS
     END pr_registrar_log_update;
 END pkg_formularios;
 /
+
+
+------------------------------------------------>>>> PAQUETES SIN PROBRAR, PERO EN TEORIA FUNVIONAN
+
+
+prompt +-------------------------------------------------------------+
+prompt |            Package  paquete_pedidos  
+prompt +-------------------------------------------------------------+
+
+-- Paquete para manejar operaciones relacionadas con pedidos
+CREATE OR REPLACE PACKAGE paquete_pedidos AS
+  PROCEDURE imprimir_pedidos_prioritarios;
+  PROCEDURE imprimir_pedidos_prioritarios_fecha_actual;
+  PROCEDURE imprimir_pedidos_por_estado(p_estado_id IN NUMBER);
+END paquete_pedidos;
+/
+
+CREATE OR REPLACE PACKAGE BODY paquete_pedidos AS
+
+  PROCEDURE imprimir_pedidos_prioritarios AS
+  BEGIN
+      FOR pedido IN (
+          SELECT P.ID_PEDIDOS, P.FECHA_CREACION, P.FECHA_ENTREGA, P.DESCUENTO, P.TOTAL,
+                 PR.prioridad.nombre AS NOMBRE_PRIORIDADES
+          FROM PEDIDOS P
+          INNER JOIN PRIORIDADES PR ON P.PRIORIDAD = PR.prioridad.id
+          ORDER BY PR.prioridad.id DESC
+      ) LOOP
+          DBMS_OUTPUT.PUT_LINE('ID Pedido: ' || pedido.ID_PEDIDOS ||
+                               ', Fecha Creación: ' || pedido.FECHA_CREACION ||
+                               ', Fecha Entrega: ' || pedido.FECHA_ENTREGA ||
+                               ', Descuento: ' || pedido.DESCUENTO ||
+                               ', Total: ' || pedido.TOTAL ||
+                               ', Prioridad: ' || pedido.NOMBRE_PRIORIDADES);
+      END LOOP;
+  END imprimir_pedidos_prioritarios;
+
+
+  PROCEDURE imprimir_pedidos_prioritarios_fecha_actual AS
+  BEGIN
+      FOR pedido IN (
+          SELECT P.ID_PEDIDOS, P.FECHA_CREACION, P.FECHA_ENTREGA, P.DESCUENTO, P.TOTAL,
+                 PR.prioridad.nombre AS NOMBRE_PRIORIDADES
+          FROM PEDIDOS P
+          INNER JOIN PRIORIDADES PR ON P.PRIORIDAD = PR.prioridad.id
+          WHERE TRUNC(P.FECHA_CREACION) = TRUNC(SYSDATE)
+          ORDER BY PR.prioridad.id DESC
+      ) LOOP
+          DBMS_OUTPUT.PUT_LINE('ID Pedido: ' || pedido.ID_PEDIDOS ||
+                               ', Fecha Creación: ' || pedido.FECHA_CREACION ||
+                               ', Fecha Entrega: ' || pedido.FECHA_ENTREGA ||
+                               ', Descuento: ' || pedido.DESCUENTO ||
+                               ', Total: ' || pedido.TOTAL ||
+                               ', Prioridad: ' || pedido.NOMBRE_PRIORIDADES);
+      END LOOP;
+  END imprimir_pedidos_prioritarios_fecha_actual;
+
+
+  PROCEDURE imprimir_pedidos_por_estado(p_estado_id IN NUMBER) AS
+  BEGIN
+      FOR pedido IN (
+          SELECT P.ID_PEDIDOS, P.FECHA_CREACION, P.FECHA_ENTREGA, P.DESCUENTO, P.TOTAL,
+                 PR.prioridad.nombre AS NOMBRE_PRIORIDADES,
+                 S.seguimiento.nombre AS NOMBRE_SEGUIMIENTO
+          FROM PEDIDOS P
+          INNER JOIN PRIORIDADES PR ON P.PRIORIDAD = PR.prioridad.id
+          INNER JOIN SEGUIMIENTOS S ON P.SEGUIMIENTO = S.seguimiento.id
+          WHERE P.SEGUIMIENTO = p_estado_id
+          ORDER BY P.FECHA_CREACION DESC
+      ) LOOP
+          DBMS_OUTPUT.PUT_LINE('ID Pedido: ' || pedido.ID_PEDIDOS ||
+                               ', Fecha Creación: ' || pedido.FECHA_CREACION ||
+                               ', Fecha Entrega: ' || pedido.FECHA_ENTREGA ||
+                               ', Descuento: ' || pedido.DESCUENTO ||
+                               ', Total: ' || pedido.TOTAL ||
+                               ', Prioridad: ' || pedido.NOMBRE_PRIORIDADES ||
+                               ', Estado: ' || pedido.NOMBRE_SEGUIMIENTO);
+      END LOOP;
+  END imprimir_pedidos_por_estado;
+
+END paquete_pedidos;
+/
