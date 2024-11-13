@@ -3257,3 +3257,469 @@ END;
 
 
 
+prompt +-------------------------------------------------------------+
+prompt |            Triggers de la  Tabla   PRODUCTOS         
+prompt +-------------------------------------------------------------+
+
+
+DROP SEQUENCE seq_id_producto;
+CREATE SEQUENCE seq_id_producto START WITH 1 INCREMENT BY 1;
+
+
+CREATE OR REPLACE TRIGGER trg_validacion_productos_insert
+BEFORE INSERT ON PRODUCTOS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'INSERT';
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'PRODUCTOS';
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
+BEGIN
+    :NEW.ID_PRODUCTO := seq_id_producto.NEXTVAL;
+    SELECT ESTADO_LABORATORIO INTO v_estado_laboratorio
+    FROM LABORATORIOS
+    WHERE ID_LABORATORIO = :NEW.ID_LABORATORIOS;
+
+    IF v_estado_laboratorio != 1 THEN
+        RAISE ex_laboratorio_inactivo;
+    END IF;
+    :NEW.CANTIDAD_ACTUAL :=0;
+    :NEW.FECHA_ACTUALIZACION := SYSDATE;
+    
+
+    -- Avisar por consola si hay más productos de los del stock máximo
+    IF :NEW.CANTIDAD_ACTUAL > :NEW.STOCK_MAXIMO THEN
+        DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Exceso de stock máximo para el producto ' || :NEW.NOMBRE_PRODUCTO);
+    END IF;
+
+    -- Avisar por consola si hay poca cantidad de productos
+    IF :NEW.CANTIDAD_ACTUAL < :NEW.STOCK_MINIMO THEN
+        DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Poca cantidad de productos para el producto ' || :NEW.NOMBRE_PRODUCTO);
+    END IF;
+
+    v_accion :=
+        ' || NEW' ||
+        ' | 1. ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :NEW.PRECIO ||    
+        ' | 5.STOCK_MINIMO: ' || :NEW.STOCK_MINIMO ||      
+        ' | 6.STOCK_MAXIMO: ' || :NEW.STOCK_MAXIMO ||
+        ' | 7.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL ||
+        ' | 8.FECHA_CREACION: ' || :NEW.FECHA_CREACION ||
+        ' | 9.FECHA_ACTUALIZACION: ' || :NEW.FECHA_ACTUALIZACION ||
+        ' | 10.ID_LABORATORIOS: ' || :NEW.ID_LABORATORIOS 
+        ;                                    
+
+    v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+        ' , NEW 1.ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||    
+        ' , NEW 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||  
+        ' , NEW 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO || 
+        ' , NEW 4.PRECIO: ' || :NEW.PRECIO ||  
+        ' , NEW 5.STOCK_MINIMO: ' || :NEW.STOCK_MINIMO ||
+        ' , NEW  6.STOCK_MAXIMO: ' || :NEW.STOCK_MAXIMO ||
+        ' , NEW  7.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL ||
+        ' , NEW  8.FECHA_CREACION: ' || :NEW.FECHA_CREACION ||
+        ' , NEW  9.FECHA_ACTUALIZACION: ' || :NEW.FECHA_ACTUALIZACION ||
+        ' , NEW  10.ID_LABORATORIOS: ' || :NEW.ID_LABORATORIOS 
+        ;
+
+    -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+    EXCEPTION
+    WHEN ex_laboratorio_inactivo THEN
+        RAISE_APPLICATION_ERROR(-20023, 'No se puede agregar el producto porque el laboratorio asociado está desactivado.');
+END;
+/
+
+
+
+CREATE OR REPLACE TRIGGER trg_productos_AFTER_insert
+BEFORE INSERT ON PRODUCTOS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'INSERT';
+    v_momento VARCHAR2(10) := 'AFTER';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'PRODUCTOS';
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
+BEGIN
+
+    v_accion :=
+        ' || NEW' ||
+        ' | 1. ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :NEW.PRECIO ||    
+        ' | 5.STOCK_MINIMO: ' || :NEW.STOCK_MINIMO ||      
+        ' | 6.STOCK_MAXIMO: ' || :NEW.STOCK_MAXIMO ||
+        ' | 7.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL ||
+        ' | 8.FECHA_CREACION: ' || :NEW.FECHA_CREACION ||
+        ' | 9.FECHA_ACTUALIZACION: ' || :NEW.FECHA_ACTUALIZACION ||
+        ' | 10.ID_LABORATORIOS: ' || :NEW.ID_LABORATORIOS 
+        ;                                    
+
+    v_accion_aud :=
+        'TABLA: ' ||v_tabla ||' => '||
+        ' , NEW 1.ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||    
+        ' , NEW 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||  
+        ' , NEW 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO || 
+        ' , NEW 4.PRECIO: ' || :NEW.PRECIO ||  
+        ' , NEW 5.STOCK_MINIMO: ' || :NEW.STOCK_MINIMO ||
+        ' , NEW  6.STOCK_MAXIMO: ' || :NEW.STOCK_MAXIMO ||
+        ' , NEW  7.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL ||
+        ' , NEW  8.FECHA_CREACION: ' || :NEW.FECHA_CREACION ||
+        ' , NEW  9.FECHA_ACTUALIZACION: ' || :NEW.FECHA_ACTUALIZACION ||
+        ' , NEW  10.ID_LABORATORIOS: ' || :NEW.ID_LABORATORIOS 
+        ;
+
+    -- Registrar log en la tabla
+    pkg_manejo_logs.pr_insertar_log_tabla(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion_aud
+    );
+
+    -- Registrar log en el archivo CSV
+    pkg_manejo_logs.pr_insertar_log_archivo(
+        p_evento  => v_evento,
+        p_momento => v_momento,
+        p_accion  => v_accion,
+        p_tabla   => v_tabla
+    );
+
+    EXCEPTION
+        WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+
+
+
+
+----> actualizar
+CREATE OR REPLACE TRIGGER tg_val_productos_before_update
+BEFORE UPDATE ON PRODUCTOS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'UPDATE';
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'PRODUCTOS';
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
+BEGIN
+    SELECT ESTADO_LABORATORIO INTO v_estado_laboratorio
+    FROM LABORATORIOS
+    WHERE ID_LABORATORIO = :NEW.ID_LABORATORIOS;
+
+    IF v_estado_laboratorio != 1 THEN
+        RAISE ex_laboratorio_inactivo;
+    END IF;
+
+    :NEW.FECHA_ACTUALIZACION := SYSDATE;
+
+    IF :NEW.CANTIDAD_ACTUAL > :NEW.STOCK_MAXIMO THEN
+        DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Exceso de stock máximo para el producto ' || :NEW.NOMBRE_PRODUCTO);
+    END IF;
+
+    IF :NEW.CANTIDAD_ACTUAL < :NEW.STOCK_MINIMO THEN
+        DBMS_OUTPUT.PUT_LINE('ADVERTENCIA: Poca cantidad de productos para el producto ' || :NEW.NOMBRE_PRODUCTO);
+    END IF;
+
+    v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :OLD.PRECIO ||    
+        ' | 5.CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' || NEW' ||
+        ' | 1. ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :NEW.PRECIO ||    
+        ' | 5.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL 
+        ;                                    
+
+    v_accion_aud :=
+    'TABLA: ' ||v_tabla ||' => '||
+        ' , OLD 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||    
+        ' , OLD 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||    
+        ' , OLD 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||   
+        ' , OLD 4.PRECIO: ' || :OLD.PRECIO || 
+        ' , OLD 5.STOCK_MINIMO: ' || :OLD.STOCK_MINIMO ||  
+        ' , OLD 6.STOCK_MAXIMO: ' || :OLD.STOCK_MAXIMO ||
+        ' , OLD 7. CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' , OLD 8. FECHA_CREACION: ' || :OLD.FECHA_CREACION ||
+        ' , OLD 9. FECHA_ACTUALIZACION: ' || :OLD.FECHA_ACTUALIZACION ||
+        ' , OLD 10. ID_LABORATORIOS: ' || :OLD.ID_LABORATORIOS ||
+        ' , NEW 1.ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||    
+        ' , NEW 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||  
+        ' , NEW 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO || 
+        ' , NEW 4.PRECIO: ' || :NEW.PRECIO ||  
+        ' , NEW 5.STOCK_MINIMO: ' || :NEW.STOCK_MINIMO ||
+        ' , NEW  6.STOCK_MAXIMO: ' || :NEW.STOCK_MAXIMO ||
+        ' , NEW  7.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL ||
+        ' , NEW  8.FECHA_CREACION: ' || :NEW.FECHA_CREACION ||
+        ' , NEW  9.FECHA_ACTUALIZACION: ' || :NEW.FECHA_ACTUALIZACION ||
+        ' , NEW  10.ID_LABORATORIOS: ' || :NEW.ID_LABORATORIOS 
+        ;
+
+
+            -- Registrar log en la tabla
+            pkg_manejo_logs.pr_insertar_log_tabla(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion_aud
+            );
+
+            -- Registrar log en el archivo CSV
+            pkg_manejo_logs.pr_insertar_log_archivo(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion,
+                p_tabla   => v_tabla
+            );
+
+    EXCEPTION
+    WHEN ex_laboratorio_inactivo THEN
+        DBMS_OUTPUT.PUT_LINE('No se puede agregar el producto porque el laboratorio asociado está desactivado.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+CREATE OR REPLACE TRIGGER tg__productos_after_update
+AFTER UPDATE ON PRODUCTOS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'UPDATE';
+    v_momento VARCHAR2(10) := 'AFTER';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'PRODUCTOS';
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
+BEGIN
+    v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :OLD.PRECIO ||    
+        ' | 5.CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' || NEW' ||
+        ' | 1. ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :NEW.PRECIO ||    
+        ' | 5.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL 
+        ;                                    
+
+    v_accion_aud :=
+    'TABLA: ' ||v_tabla ||' => '||
+        ' , OLD 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||    
+        ' , OLD 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||    
+        ' , OLD 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||   
+        ' , OLD 4.PRECIO: ' || :OLD.PRECIO || 
+        ' , OLD 5.STOCK_MINIMO: ' || :OLD.STOCK_MINIMO ||  
+        ' , OLD 6.STOCK_MAXIMO: ' || :OLD.STOCK_MAXIMO ||
+        ' , OLD 7. CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' , OLD 8. FECHA_CREACION: ' || :OLD.FECHA_CREACION ||
+        ' , OLD 9. FECHA_ACTUALIZACION: ' || :OLD.FECHA_ACTUALIZACION ||
+        ' , OLD 10. ID_LABORATORIOS: ' || :OLD.ID_LABORATORIOS ||
+        ' , NEW 1.ID_PRODUCTO: ' || :NEW.ID_PRODUCTO ||    
+        ' , NEW 2.NOMBRE_PRODUCTO: ' || :NEW.NOMBRE_PRODUCTO ||  
+        ' , NEW 3.DESCRIPCION_PRODUCTO: ' || :NEW.DESCRIPCION_PRODUCTO || 
+        ' , NEW 4.PRECIO: ' || :NEW.PRECIO ||  
+        ' , NEW 5.STOCK_MINIMO: ' || :NEW.STOCK_MINIMO ||
+        ' , NEW  6.STOCK_MAXIMO: ' || :NEW.STOCK_MAXIMO ||
+        ' , NEW  7.CANTIDAD_ACTUAL: ' || :NEW.CANTIDAD_ACTUAL ||
+        ' , NEW  8.FECHA_CREACION: ' || :NEW.FECHA_CREACION ||
+        ' , NEW  9.FECHA_ACTUALIZACION: ' || :NEW.FECHA_ACTUALIZACION ||
+        ' , NEW  10.ID_LABORATORIOS: ' || :NEW.ID_LABORATORIOS 
+        ;
+
+            -- Registrar log en la tabla
+            pkg_manejo_logs.pr_insertar_log_tabla(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion_aud
+            );
+
+            -- Registrar log en el archivo CSV
+            pkg_manejo_logs.pr_insertar_log_archivo(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion,
+                p_tabla   => v_tabla
+            );
+
+    EXCEPTION
+    WHEN ex_laboratorio_inactivo THEN
+        DBMS_OUTPUT.PUT_LINE('No se puede agregar el producto porque el laboratorio asociado está desactivado.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+
+----> DELETE
+CREATE OR REPLACE TRIGGER tg_productos_before_DEL
+BEFORE DELETE ON PRODUCTOS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'DELETE';
+    v_momento VARCHAR2(10) := 'BEFORE';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'PRODUCTOS';
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
+BEGIN
+    
+
+    v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :OLD.PRECIO ||    
+        ' | 5.STOCK_MINIMO: ' || :OLD.STOCK_MINIMO ||      
+        ' | 6.STOCK_MAXIMO: ' || :OLD.STOCK_MAXIMO ||
+        ' | 7.CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' | 8.FECHA_CREACION: ' || :OLD.FECHA_CREACION ||
+        ' | 9.FECHA_ACTUALIZACION: ' || :OLD.FECHA_ACTUALIZACION ||
+        ' | 10.ID_LABORATORIOS: ' || :OLD.ID_LABORATORIOS 
+        ;                                    
+
+    v_accion_aud :=
+    'TABLA: ' ||v_tabla ||' => '||
+        ' , OLD 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||    
+        ' , OLD 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||    
+        ' , OLD 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||   
+        ' , OLD 4.PRECIO: ' || :OLD.PRECIO || 
+        ' , OLD 5.STOCK_MINIMO: ' || :OLD.STOCK_MINIMO ||  
+        ' , OLD 6.STOCK_MAXIMO: ' || :OLD.STOCK_MAXIMO ||
+        ' , OLD 7. CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' , OLD 8. FECHA_CREACION: ' || :OLD.FECHA_CREACION ||
+        ' , OLD 9. FECHA_ACTUALIZACION: ' || :OLD.FECHA_ACTUALIZACION ||
+        ' , OLD 10. ID_LABORATORIOS: ' || :OLD.ID_LABORATORIOS
+        ;
+
+            -- Registrar log en la tabla
+            pkg_manejo_logs.pr_insertar_log_tabla(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion_aud
+            );
+
+            -- Registrar log en el archivo CSV
+            pkg_manejo_logs.pr_insertar_log_archivo(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion,
+                p_tabla   => v_tabla
+            );
+
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
+
+CREATE OR REPLACE TRIGGER tg_productos_AFTER_DEL
+AFTER DELETE ON PRODUCTOS
+FOR EACH ROW
+DECLARE
+    v_evento VARCHAR2(10) := 'DELETE';
+    v_momento VARCHAR2(10) := 'AFTER';
+    v_accion VARCHAR2(500);
+    v_accion_aud logs.ACCION_AUD%type;
+    v_tabla VARCHAR2(50) := 'PRODUCTOS';
+    ex_laboratorio_inactivo EXCEPTION;
+    v_estado_laboratorio INTEGER;
+    v_cantidad_actual INTEGER;
+BEGIN
+    
+
+    v_accion :=
+        ' || OLD' ||
+        ' | 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||                                 
+        ' | 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||                    
+        ' | 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||                    
+        ' | 4.PRECIO: ' || :OLD.PRECIO ||    
+        ' | 5.STOCK_MINIMO: ' || :OLD.STOCK_MINIMO ||      
+        ' | 6.STOCK_MAXIMO: ' || :OLD.STOCK_MAXIMO ||
+        ' | 7.CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' | 8.FECHA_CREACION: ' || :OLD.FECHA_CREACION ||
+        ' | 9.FECHA_ACTUALIZACION: ' || :OLD.FECHA_ACTUALIZACION ||
+        ' | 10.ID_LABORATORIOS: ' || :OLD.ID_LABORATORIOS 
+        ;                                    
+
+    v_accion_aud :=
+    'TABLA: ' ||v_tabla ||' => '||
+        ' , OLD 1. ID_PRODUCTO: ' || :OLD.ID_PRODUCTO ||    
+        ' , OLD 2.NOMBRE_PRODUCTO: ' || :OLD.NOMBRE_PRODUCTO ||    
+        ' , OLD 3.DESCRIPCION_PRODUCTO: ' || :OLD.DESCRIPCION_PRODUCTO ||   
+        ' , OLD 4.PRECIO: ' || :OLD.PRECIO || 
+        ' , OLD 5.STOCK_MINIMO: ' || :OLD.STOCK_MINIMO ||  
+        ' , OLD 6.STOCK_MAXIMO: ' || :OLD.STOCK_MAXIMO ||
+        ' , OLD 7. CANTIDAD_ACTUAL: ' || :OLD.CANTIDAD_ACTUAL ||
+        ' , OLD 8. FECHA_CREACION: ' || :OLD.FECHA_CREACION ||
+        ' , OLD 9. FECHA_ACTUALIZACION: ' || :OLD.FECHA_ACTUALIZACION ||
+        ' , OLD 10. ID_LABORATORIOS: ' || :OLD.ID_LABORATORIOS
+        ;
+
+            -- Registrar log en la tabla
+            pkg_manejo_logs.pr_insertar_log_tabla(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion_aud
+            );
+
+            -- Registrar log en el archivo CSV
+            pkg_manejo_logs.pr_insertar_log_archivo(
+                p_evento  => v_evento,
+                p_momento => v_momento,
+                p_accion  => v_accion,
+                p_tabla   => v_tabla
+            );
+
+    EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Comuníquese con el responsable del área.');     
+        DBMS_OUTPUT.PUT_LINE('Código de error: ' || SQLCODE || ' - Mensaje: ' || SQLERRM);
+END;
+/
