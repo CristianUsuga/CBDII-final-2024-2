@@ -51,3 +51,11 @@ VALUES (1, 1, 'Guayabal');
 
 INSERT INTO BARRIOS (ID_DEPARTAMENTO, ID_CIUDAD, NOMBRE_BARRIO)
 VALUES (1, 1, 'Belén');
+
+
+
+INSERT INTO roles (rol) values (elemento(1,'Cliente'));
+INSERT INTO roles (rol) values (elemento(2,'Administrador '));
+INSERT INTO roles (rol) values (elemento(3,'Delegado '));
+INSERT INTO roles (rol) values (elemento(4,'Inventarios '));
+INSERT INTO roles (rol) values (elemento(5,'Vendedor '));

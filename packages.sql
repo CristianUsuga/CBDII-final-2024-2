@@ -434,6 +434,49 @@ END pkg_formularios;
 /
 
 
+prompt +-------------------------------------------------------------+
+prompt |            Package  pkg_usuarios   
+prompt +-------------------------------------------------------------+
+prompt --> Cabecera del paquete pkg_usuarios
+CREATE OR REPLACE PACKAGE pkg_usuarios AS
+    -- Función para obtener todos los datos de usuarios con los nombres de las relaciones
+    FUNCTION fn_obtener_usuarios RETURN SYS_REFCURSOR;
+END pkg_usuarios;
+/
+
+prompt --> Cuerpo del paquete  pkg_usuarios
+CREATE OR REPLACE PACKAGE BODY pkg_usuarios AS
+    FUNCTION fn_obtener_usuarios RETURN SYS_REFCURSOR IS
+        v_cursor SYS_REFCURSOR;
+    BEGIN
+        OPEN v_cursor FOR
+            SELECT 
+                u.DOCUMENTO_USUARIO,
+                u.datos_usuario.nombre AS NOMBRE_USUARIO,
+                u.PRIMER_APELLIDO_USUARIO,
+                u.SEGUNDO_APELLIDO_USUARIO,
+                u.PASSWORD_USUARIO,
+                u.FECHA_NACIMIENTO_USUARIO,
+                u.datos_usuario.telefono.fijo AS TELEFONO_FIJO,
+                u.datos_usuario.telefono.movil AS CELULAR,
+                u.datos_usuario.correo AS CORREO,
+                td.tipo_documento.nombre AS TIPO_DOCUMENTO,
+                eu.estado_usuario.nombre AS ESTADO_USUARIO,
+                s.sexo.nombre AS SEXO,
+                r.rol.nombre AS ROL
+            FROM 
+                USUARIOS u
+            LEFT JOIN TIPOS_DOCUMENTOS td ON u.TIPO_DOCUMENTO = td.tipo_documento.id
+            LEFT JOIN ESTADOS_USUARIOS eu ON u.ESTADO_USUARIO = eu.estado_usuario.id
+            LEFT JOIN SEXOS s ON u.SEXO_USUARIO = s.sexo.id
+            LEFT JOIN ROLES r ON u.ROL_USUARIO = r.rol.id;
+
+        RETURN v_cursor;
+    END fn_obtener_usuarios;
+END pkg_usuarios;
+/
+
+
 ------------------------------------------------>>>> PAQUETES SIN PROBRAR, PERO EN TEORIA FUNVIONAN
 
 

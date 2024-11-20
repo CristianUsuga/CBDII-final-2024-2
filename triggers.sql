@@ -1839,6 +1839,7 @@ DECLARE
     v_accion VARCHAR2(500);
     v_accion_aud logs.ACCION_AUD%type;
     v_tabla VARCHAR2(50):= 'USUARIOS';
+     v_edad INTEGER;
     ex_documento_invalido EXCEPTION;
     ex_nombre_usuario_nulo EXCEPTION;
     ex_primer_apellido_nulo EXCEPTION;
@@ -1905,6 +1906,21 @@ BEGIN
     IF :NEW.DATOS_USUARIO.telefono.fijo IS NOT NULL AND
         NOT pkg_utilidades.fn_validar_telefono(:NEW.DATOS_USUARIO.telefono.fijo) THEN
         RAISE ex_telefono_invalido;
+    END IF;
+
+        -- Validación de la fecha de nacimiento y cálculo de edad
+    IF :NEW.FECHA_NACIMIENTO_USUARIO IS NOT NULL THEN
+        IF NOT pkg_utilidades.fn_validar_fecha_nacimiento(:NEW.FECHA_NACIMIENTO_USUARIO) THEN
+            RAISE ex_fecha_nacimiento_invalida;
+        END IF;
+
+        -- Calcular la edad del usuario en años
+        v_edad := FLOOR((SYSDATE - :NEW.FECHA_NACIMIENTO_USUARIO) / 365.25);
+
+        -- Asignar tipo de documento en función de la edad
+        IF v_edad >= 18 AND :NEW.TIPO_DOCUMENTO = 1 THEN
+            :NEW.TIPO_DOCUMENTO := 2; -- Cédula de Ciudadanía
+        END IF;
     END IF;
 
     IF INSERTING THEN
